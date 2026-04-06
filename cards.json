@@ -1,0 +1,971 @@
+{
+  "meta": {
+    "query": "legal:commander game:paper",
+    "threshold": 2.0,
+    "max_cards": 50,
+    "result_count": 36,
+    "generated_at_unix": 1775430400,
+    "includes_tagger_tags": true
+  },
+  "cards": [
+    {
+      "name": "Abaddon the Despoiler",
+      "oracle_id": "8dedb9a7-0afa-4dff-b124-2344c170f11a",
+      "set": "40k",
+      "collector_number": "2",
+      "include_pct": 1.5,
+      "card_type": "Legendary Creature — Astartes Warrior",
+      "mana_cost": "{2}{U}{B}{R}",
+      "cmc": 5.0,
+      "edhrec_rank": 8351,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abaddon+the+Despoiler",
+      "scryfall_link": "https://scryfall.com/card/40k/2/abaddon-the-despoiler?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/c/9/c9f1fc97-00c0-492b-a4a3-b179afc2f95d.jpg?1674058353",
+      "color": "UBR",
+      "color_identity": [
+        "B",
+        "R",
+        "U"
+      ],
+      "tags": [
+        "40k model",
+        "life loss matters",
+        "consult-cast",
+        "cycle-40k-face-commander"
+      ],
+      "keywords": [
+        "Mark of Chaos Ascendant",
+        "Trample"
+      ]
+    },
+    {
+      "name": "Abomination of Llanowar",
+      "oracle_id": "5146ba3f-2c5f-4a86-95d7-a34ce1e842b0",
+      "set": "khc",
+      "collector_number": "81",
+      "include_pct": 1.5,
+      "card_type": "Legendary Creature — Elf Horror",
+      "mana_cost": "{1}{B}{G}",
+      "cmc": 3.0,
+      "edhrec_rank": 5368,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abomination+of+Llanowar",
+      "scryfall_link": "https://scryfall.com/card/khc/81/abomination-of-llanowar?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/b/4b68bc46-5591-44dd-becc-eca154066925.jpg?1631235320",
+      "color": "BG",
+      "color_identity": [
+        "B",
+        "G"
+      ],
+      "tags": [
+        "warlord",
+        "unique type line",
+        "undergrowth",
+        "typal-elf"
+      ],
+      "keywords": [
+        "Vigilance",
+        "Menace"
+      ]
+    },
+    {
+      "name": "Aberrant Return",
+      "oracle_id": "3a92b235-196b-4f46-9d20-06f4d3653d36",
+      "set": "ecc",
+      "collector_number": "7",
+      "include_pct": 1.4,
+      "card_type": "Sorcery",
+      "mana_cost": "{4}{B}{B}",
+      "cmc": 6.0,
+      "edhrec_rank": 7887,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aberrant+Return",
+      "scryfall_link": "https://scryfall.com/card/ecc/7/aberrant-return?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/a/2/a27a3d4b-caa7-4c5e-b1f3-aa607d3b157d.jpg?1767729745",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "drawback",
+        "single target instant/sorcery",
+        "multiple targets",
+        "reanimate-creature",
+        "gives mm counters"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Aboleth Spawn",
+      "oracle_id": "d6ae77b3-59e7-475c-800c-930a5cb2e0ca",
+      "set": "clb",
+      "collector_number": "662",
+      "include_pct": 0.9,
+      "card_type": "Creature — Fish Horror",
+      "mana_cost": "{2}{U}",
+      "cmc": 3.0,
+      "edhrec_rank": 3689,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aboleth+Spawn",
+      "scryfall_link": "https://scryfall.com/card/clb/662/aboleth-spawn?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/5/1/51889b3f-082a-40e9-8be7-11f8c1a7a9a8.jpg?1722108652",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "triggered ability",
+        "unique type line",
+        "copy-ability",
+        "creaturefall"
+      ],
+      "keywords": [
+        "Probing Telepathy",
+        "Ward",
+        "Flash"
+      ]
+    },
+    {
+      "name": "Aang's Iceberg",
+      "oracle_id": "646f9ad8-9d18-4b42-954a-e21a62e9f0e8",
+      "set": "tla",
+      "collector_number": "5",
+      "include_pct": 0.8,
+      "card_type": "Enchantment",
+      "mana_cost": "{2}{W}",
+      "cmc": 3.0,
+      "edhrec_rank": 7831,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aang%27s+Iceberg",
+      "scryfall_link": "https://scryfall.com/card/tla/5/aangs-iceberg?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/7/2/720fbd87-b1c1-4b3b-97a1-46b943b115e3.jpg?1764119900",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "tap fuel-artifact",
+        "triggered ability",
+        "virtual legendary",
+        "tap fuel-creature"
+      ],
+      "keywords": [
+        "Flash",
+        "Waterbend",
+        "Scry"
+      ]
+    },
+    {
+      "name": "Abandoned Campground",
+      "oracle_id": "0eec9984-cd11-4a52-9234-469c6a5fb9aa",
+      "set": "dsk",
+      "collector_number": "255",
+      "include_pct": 0.66,
+      "card_type": "Land",
+      "mana_cost": "",
+      "cmc": 0.0,
+      "edhrec_rank": 9370,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandoned+Campground",
+      "scryfall_link": "https://scryfall.com/card/dsk/255/abandoned-campground?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/e/e/ee0565f5-ebdb-43f9-bbb4-0485b1968937.jpg?1726286826",
+      "color": "WU",
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "tags": [
+        "cycle-dsk-thirteenland",
+        "activated ability",
+        "life-total-matters-self"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Aberrant",
+      "oracle_id": "46b5f12e-9fe5-44f6-b895-ee8c33205521",
+      "set": "40k",
+      "collector_number": "86",
+      "include_pct": 0.63,
+      "card_type": "Creature — Tyranid Mutant",
+      "mana_cost": "{X}{1}{G}",
+      "cmc": 2.0,
+      "edhrec_rank": 5420,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aberrant",
+      "scryfall_link": "https://scryfall.com/card/40k/86/aberrant?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/9/49dfee68-c242-4579-94b1-c23238f8c87d.jpg?1673309085",
+      "color": "G",
+      "color_identity": [
+        "G"
+      ],
+      "tags": [
+        "40k model",
+        "unique type line",
+        "single english word name",
+        "cantrip"
+      ],
+      "keywords": [
+        "Ravenous",
+        "Trample",
+        "Heavy Power Hammer"
+      ]
+    },
+    {
+      "name": "Abhorrent Oculus",
+      "oracle_id": "b1a0e129-27f0-4a09-b00d-497e18777306",
+      "set": "dsk",
+      "collector_number": "42",
+      "include_pct": 0.61,
+      "card_type": "Creature — Eye",
+      "mana_cost": "{2}{U}",
+      "cmc": 3.0,
+      "edhrec_rank": 5838,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abhorrent+Oculus",
+      "scryfall_link": "https://scryfall.com/card/dsk/42/abhorrent-oculus?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/d/2/d2705b43-a94a-44c0-8740-82e0b296820c.jpg?1726286015",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "drawback",
+        "triggered ability",
+        "graveyard fuel",
+        "mill-self",
+        "evasion"
+      ],
+      "keywords": [
+        "Flying",
+        "Manifest",
+        "Manifest dread"
+      ]
+    },
+    {
+      "name": "Aang's Journey",
+      "oracle_id": "ddf461b9-a205-4dc7-a9c3-c047b1ff709f",
+      "set": "tla",
+      "collector_number": "1",
+      "include_pct": 0.58,
+      "card_type": "Sorcery — Lesson",
+      "mana_cost": "{2}",
+      "cmc": 2.0,
+      "edhrec_rank": 5718,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aang%27s+Journey",
+      "scryfall_link": "https://scryfall.com/card/tla/1/aangs-journey?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/5/e/5e51f727-5a9b-4bc7-83a9-dbcf1c933e15.jpg?1764119871",
+      "color": "COLORLESS",
+      "color_identity": [],
+      "tags": [
+        "more expensive than mv",
+        "lifegain",
+        "synergy-shrine",
+        "tutor-enchantment-shrine"
+      ],
+      "keywords": [
+        "Kicker"
+      ]
+    },
+    {
+      "name": "Abhorrent Overlord",
+      "oracle_id": "13f63240-a6bb-4333-a3dd-818725c6fb73",
+      "set": "ths",
+      "collector_number": "75",
+      "include_pct": 0.54,
+      "card_type": "Creature — Demon",
+      "mana_cost": "{5}{B}{B}",
+      "cmc": 7.0,
+      "edhrec_rank": 5735,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abhorrent+Overlord",
+      "scryfall_link": "https://scryfall.com/card/ths/75/abhorrent-overlord?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/4/4415d050-7a76-4f8b-bf78-e33dd21fe4f1.jpg?1562817335",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "synergy-black",
+        "triggered ability",
+        "upkeep cost",
+        "hungry demon"
+      ],
+      "keywords": [
+        "Flying"
+      ]
+    },
+    {
+      "name": "Abjure",
+      "oracle_id": "dd97e457-07eb-4918-b780-ae7ff42a37e7",
+      "set": "wth",
+      "collector_number": "31",
+      "include_pct": 0.48,
+      "card_type": "Instant",
+      "mana_cost": "{U}",
+      "cmc": 1.0,
+      "edhrec_rank": 6442,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abjure",
+      "scryfall_link": "https://scryfall.com/card/wth/31/abjure?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/f/b/fbad9449-d09c-4fd0-b2ad-2aa3a29e03bf.jpg?1562804357",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "sacrifice outlet-permanent",
+        "single english word name",
+        "single target instant/sorcery",
+        "synergy-blue"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abominable Treefolk",
+      "oracle_id": "9d341ed4-4f9b-40df-9bd9-3bfeaf0fe595",
+      "set": "mh1",
+      "collector_number": "194",
+      "include_pct": 0.39,
+      "card_type": "Snow Creature — Treefolk",
+      "mana_cost": "{2}{G}{U}",
+      "cmc": 4.0,
+      "edhrec_rank": 11812,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abominable+Treefolk",
+      "scryfall_link": "https://scryfall.com/card/mh1/194/abominable-treefolk?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/1/e/1eddb834-ea01-44e2-afca-bd9a4ebbdb94.jpg?1562202283",
+      "color": "UG",
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "tags": [
+        "warlord",
+        "triggered ability",
+        "unique type line",
+        "cycle-mh1-draft-signpost"
+      ],
+      "keywords": [
+        "Trample"
+      ]
+    },
+    {
+      "name": "Aarakocra Sneak",
+      "oracle_id": "c1882cb4-f69e-441e-8871-743ed636cad0",
+      "set": "clb",
+      "collector_number": "54",
+      "include_pct": 0.33,
+      "card_type": "Creature — Bird Rogue",
+      "mana_cost": "{3}{U}",
+      "cmc": 4.0,
+      "edhrec_rank": 8335,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aarakocra+Sneak",
+      "scryfall_link": "https://scryfall.com/card/clb/54/aarakocra-sneak?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/2/a/2a83882c-3e03-4e85-aaac-97fa1d08a772.jpg?1722040128",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "take the initiative",
+        "triggered ability",
+        "evasion",
+        "virtual french vanilla"
+      ],
+      "keywords": [
+        "Flying"
+      ]
+    },
+    {
+      "name": "Abiding Grace",
+      "oracle_id": "f4e7bc58-336d-4670-84cb-a46ca1f48671",
+      "set": "mh2",
+      "collector_number": "1",
+      "include_pct": 0.33,
+      "card_type": "Enchantment",
+      "mana_cost": "{2}{W}",
+      "cmc": 3.0,
+      "edhrec_rank": 8567,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abiding+Grace",
+      "scryfall_link": "https://scryfall.com/card/mh2/1/abiding-grace?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/d/b/db113c47-c403-4c7f-9fa9-212c977df8d1.jpg?1626093205",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "mana value matters",
+        "repeatable lifegain",
+        "triggered ability",
+        "modal",
+        "reanimate-creature"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abnormal Endurance",
+      "oracle_id": "edbf1b87-2d1e-47e6-a04e-a2b1646af7d9",
+      "set": "m19",
+      "collector_number": "85",
+      "include_pct": 0.27,
+      "card_type": "Instant",
+      "mana_cost": "{1}{B}",
+      "cmc": 2.0,
+      "edhrec_rank": 9339,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abnormal+Endurance",
+      "scryfall_link": "https://scryfall.com/card/m19/85/abnormal-endurance?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/d/e/de2de2bd-9ba7-4b6f-94c2-dafb2011a48e.jpg?1562304790",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "single target instant/sorcery",
+        "combat trick",
+        "death trigger",
+        "protects-creature",
+        "cheat death"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abolish",
+      "oracle_id": "d6d7faa8-ecc9-408b-9c46-a0f62c74f567",
+      "set": "ddf",
+      "collector_number": "29",
+      "include_pct": 0.17,
+      "card_type": "Instant",
+      "mana_cost": "{1}{W}{W}",
+      "cmc": 3.0,
+      "edhrec_rank": 12474,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abolish",
+      "scryfall_link": "https://scryfall.com/card/ddf/29/abolish?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/8/4/842e7e6a-c89a-463d-a6e8-743a953c827c.jpg?1562270242",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "discard outlet-land",
+        "disenchant/naturalize",
+        "single english word name",
+        "single target instant/sorcery"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Aang's Defense",
+      "oracle_id": "92b617f9-6e6b-42a0-9c45-6ff5f6193051",
+      "set": "tle",
+      "collector_number": "266",
+      "include_pct": 0.15,
+      "card_type": "Instant",
+      "mana_cost": "{W}",
+      "cmc": 1.0,
+      "edhrec_rank": 17116,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aang%27s+Defense",
+      "scryfall_link": "https://scryfall.com/card/tle/266/aangs-defense?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/0/d/0dbb9439-6a4c-482a-83e7-5d6aa80d0cbd.jpg?1764119522",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "combat trick",
+        "namesake spell",
+        "single target instant/sorcery",
+        "cantrip"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Aberrant Mind Sorcerer",
+      "oracle_id": "753ead8c-f3f8-42fe-931d-79f5ee3ece54",
+      "set": "afr",
+      "collector_number": "44",
+      "include_pct": 0.12,
+      "card_type": "Creature — Human Elf Shaman Sorcerer",
+      "mana_cost": "{4}{U}",
+      "cmc": 5.0,
+      "edhrec_rank": 13930,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aberrant+Mind+Sorcerer",
+      "scryfall_link": "https://scryfall.com/card/afr/44/aberrant-mind-sorcerer?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/d/9/d9c6401a-e152-4acf-a2ca-75c484f296d5.jpg?1767960035",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "restock-instant",
+        "dnd mechanic",
+        "unique type line",
+        "regrowth-sorcery"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abeyance",
+      "oracle_id": "6300de53-6e71-4f0e-87e1-b0acd25c59a8",
+      "set": "wth",
+      "collector_number": "1",
+      "include_pct": 0.12,
+      "card_type": "Instant",
+      "mana_cost": "{1}{W}",
+      "cmc": 2.0,
+      "edhrec_rank": 14346,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abeyance",
+      "scryfall_link": "https://scryfall.com/card/wth/1/abeyance?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/1/2/125a355d-bfcf-4125-aa6c-35e7dea6f63e.jpg?1562799430",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "single english word name",
+        "single target instant/sorcery",
+        "hate-activation",
+        "prevent activation"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abbot of Keral Keep",
+      "oracle_id": "09be0f69-9c7f-491f-964d-bfbbc2d4251f",
+      "set": "2x2",
+      "collector_number": "100",
+      "include_pct": 0.08,
+      "card_type": "Creature — Human Monk",
+      "mana_cost": "{1}{R}",
+      "cmc": 2.0,
+      "edhrec_rank": 16085,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abbot+of+Keral+Keep",
+      "scryfall_link": "https://scryfall.com/card/2x2/100/abbot-of-keral-keep?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/c/d/cd94f624-9b35-4468-829f-106366f61c1a.jpg?1673147716",
+      "color": "R",
+      "color_identity": [
+        "R"
+      ],
+      "tags": [
+        "virtual french vanilla",
+        "impulsive draw",
+        "cast trigger-you",
+        "synergy-noncreature",
+        "alliteration"
+      ],
+      "keywords": [
+        "Prowess"
+      ]
+    },
+    {
+      "name": "Abandon Reason",
+      "oracle_id": "fa43793d-a215-4a64-a09c-ed9799f745a4",
+      "set": "emn",
+      "collector_number": "115",
+      "include_pct": 0.07,
+      "card_type": "Instant",
+      "mana_cost": "{2}{R}",
+      "cmc": 3.0,
+      "edhrec_rank": 16623,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandon+Reason",
+      "scryfall_link": "https://scryfall.com/card/emn/115/abandon-reason?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/1/8/18c0b3b3-bb62-42c5-9869-386af0540a9b.jpg?1576384496",
+      "color": "R",
+      "color_identity": [
+        "R"
+      ],
+      "tags": [
+        "gives first strike",
+        "combat trick",
+        "single target instant/sorcery",
+        "cheaper than mv"
+      ],
+      "keywords": [
+        "Madness"
+      ]
+    },
+    {
+      "name": "Abandon the Post",
+      "oracle_id": "5404c6a5-399d-4237-b03c-41b6a1b79050",
+      "set": "mid",
+      "collector_number": "127",
+      "include_pct": 0.07,
+      "card_type": "Sorcery",
+      "mana_cost": "{1}{R}",
+      "cmc": 2.0,
+      "edhrec_rank": 16764,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandon+the+Post",
+      "scryfall_link": "https://scryfall.com/card/mid/127/abandon-the-post?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/9/8/983da138-f0f5-46c4-90c2-d3c34cc37d1f.jpg?1634350355",
+      "color": "R",
+      "color_identity": [
+        "R"
+      ],
+      "tags": [
+        "repeatable crime",
+        "single target instant/sorcery",
+        "prevent blocker",
+        "more expensive than mv"
+      ],
+      "keywords": [
+        "Flashback"
+      ]
+    },
+    {
+      "name": "Abandoned Sarcophagus",
+      "oracle_id": "a051dee0-60c8-4f58-84cb-55460c097115",
+      "set": "c20",
+      "collector_number": "236",
+      "include_pct": 0.07,
+      "card_type": "Artifact",
+      "mana_cost": "{3}",
+      "cmc": 3.0,
+      "edhrec_rank": 12697,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandoned+Sarcophagus",
+      "scryfall_link": "https://scryfall.com/card/c20/236/abandoned-sarcophagus?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/2/3/23b587f3-5eac-45a7-a048-dd73d2a2b74f.jpg?1591321543",
+      "color": "COLORLESS",
+      "color_identity": [],
+      "tags": [
+        "synergy-cycling",
+        "gives castable from graveyard"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "+2 Mace",
+      "oracle_id": "629fe1be-272d-465f-b9b1-2ce177410f13",
+      "set": "afr",
+      "collector_number": "1",
+      "include_pct": 0.06,
+      "card_type": "Artifact — Equipment",
+      "mana_cost": "{1}{W}",
+      "cmc": 2.0,
+      "edhrec_rank": 17823,
+      "edhrec_link": "https://edhrec.com/route/?cc=%2B2+Mace",
+      "scryfall_link": "https://scryfall.com/card/afr/1/+2-mace?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/e/8/e882c9f9-bf30-46b6-bedc-379d2c80e5cb.jpg?1627701221",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "vanilla equipment",
+        "activated ability",
+        "dnd item"
+      ],
+      "keywords": [
+        "Equip"
+      ]
+    },
+    {
+      "name": "Abduction",
+      "oracle_id": "d0e1904e-1a37-41f6-8582-b9ea794bb886",
+      "set": "6ed",
+      "collector_number": "55",
+      "include_pct": 0.05,
+      "card_type": "Enchantment — Aura",
+      "mana_cost": "{2}{U}{U}",
+      "cmc": 4.0,
+      "edhrec_rank": 18221,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abduction",
+      "scryfall_link": "https://scryfall.com/card/6ed/55/abduction?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/6/3/63c82bef-50d6-4d25-bc3f-dda2826fc99c.jpg?1562818344",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "wth-storyline-in-cards",
+        "single english word name",
+        "protects-creature",
+        "death trigger"
+      ],
+      "keywords": [
+        "Enchant"
+      ]
+    },
+    {
+      "name": "Abattoir Ghoul",
+      "oracle_id": "2b211adb-de44-4468-b65d-907a09aa7e9d",
+      "set": "ddq",
+      "collector_number": "50",
+      "include_pct": 0.04,
+      "card_type": "Creature — Zombie",
+      "mana_cost": "{3}{B}",
+      "cmc": 4.0,
+      "edhrec_rank": 19596,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abattoir+Ghoul",
+      "scryfall_link": "https://scryfall.com/card/ddq/50/abattoir-ghoul?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/3/43297ddd-276f-4d2d-9d9c-937603d0e376.jpg?1592763119",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "repeatable lifegain",
+        "death trigger",
+        "hunger trigger",
+        "aikido",
+        "hate-high-pt"
+      ],
+      "keywords": [
+        "First strike"
+      ]
+    },
+    {
+      "name": "Abomination of Gudul",
+      "oracle_id": "3d98af5f-7a0b-4a5a-b3e4-f3c9d150c993",
+      "set": "ktk",
+      "collector_number": "159",
+      "include_pct": 0.04,
+      "card_type": "Creature — Horror",
+      "mana_cost": "{3}{B}{G}{U}",
+      "cmc": 6.0,
+      "edhrec_rank": 26302,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abomination+of+Gudul",
+      "scryfall_link": "https://scryfall.com/card/ktk/159/abomination-of-gudul?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/7/d/7df9759e-1072-4a6a-be57-f73b15bf3847.jpg?1562789157",
+      "color": "UBG",
+      "color_identity": [
+        "B",
+        "G",
+        "U"
+      ],
+      "tags": [
+        "triggered ability",
+        "curiosity",
+        "hand-neutral",
+        "cheaper than mv"
+      ],
+      "keywords": [
+        "Flying",
+        "Morph"
+      ]
+    },
+    {
+      "name": "Abandon Hope",
+      "oracle_id": "8adbba6e-03ef-4278-aec5-8a4496b377a8",
+      "set": "tmp",
+      "collector_number": "107",
+      "include_pct": 0.03,
+      "card_type": "Sorcery",
+      "mana_cost": "{X}{1}{B}",
+      "cmc": 2.0,
+      "edhrec_rank": 21623,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandon+Hope",
+      "scryfall_link": "https://scryfall.com/card/tmp/107/abandon-hope?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/9/4/942cf220-472c-48f6-8f60-993939ea5ab8.jpg?1562055436",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "hellbending",
+        "tmp-storyline-in-cards",
+        "discard outlet",
+        "single target instant/sorcery"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abandoned Outpost",
+      "oracle_id": "5a70ccfa-d12d-4e62-a1a4-f05cda2fd442",
+      "set": "ody",
+      "collector_number": "312",
+      "include_pct": 0.03,
+      "card_type": "Land",
+      "mana_cost": "",
+      "cmc": 0.0,
+      "edhrec_rank": 21574,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abandoned+Outpost",
+      "scryfall_link": "https://scryfall.com/card/ody/312/abandoned-outpost?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/9/4945031e-1158-474c-9e50-1ec817acc767.jpg?1562908368",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "cycle-ody-sacland",
+        "activated ability",
+        "sacrifice self",
+        "rainbow land"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Abbey Griffin",
+      "oracle_id": "6eb74f6e-1c9d-4caf-a0d8-fa472d435346",
+      "set": "isd",
+      "collector_number": "1",
+      "include_pct": 0.03,
+      "card_type": "Creature — Griffin",
+      "mana_cost": "{3}{W}",
+      "cmc": 4.0,
+      "edhrec_rank": 21729,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abbey+Griffin",
+      "scryfall_link": "https://scryfall.com/card/isd/1/abbey-griffin?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/b/f/bf87803b-e7c6-4122-add4-72e596167b7e.jpg?1562836433",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "french vanilla",
+        "evasion"
+      ],
+      "keywords": [
+        "Flying",
+        "Vigilance"
+      ]
+    },
+    {
+      "name": "Aardvark Sloth",
+      "oracle_id": "1c385880-3eea-45c8-8e89-330ad8ad92b1",
+      "set": "tle",
+      "collector_number": "267",
+      "include_pct": 0.02,
+      "card_type": "Creature — Sloth Beast",
+      "mana_cost": "{3}{W}",
+      "cmc": 4.0,
+      "edhrec_rank": 26587,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aardvark+Sloth",
+      "scryfall_link": "https://scryfall.com/card/tle/267/aardvark-sloth?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/7/5/75cfa6e8-5a4d-4a10-bd99-d45df8775549.jpg?1764119528",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "repeatable lifegain",
+        "french vanilla"
+      ],
+      "keywords": [
+        "Lifelink"
+      ]
+    },
+    {
+      "name": "Aberrant Researcher // Perfected Form",
+      "oracle_id": "722ee05f-6815-41b7-9813-5ec3902c1e9f",
+      "set": "inr",
+      "collector_number": "52",
+      "include_pct": 0.02,
+      "card_type": "Creature — Human Insect // Creature — Insect Horror",
+      "mana_cost": null,
+      "cmc": 4.0,
+      "edhrec_rank": 22554,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aberrant+Researcher",
+      "scryfall_link": "https://scryfall.com/card/inr/52/aberrant-researcher-perfected-form?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/4/1/41b0eddd-9364-4ca1-ac81-0175dd1387e8.jpg?1736467651",
+      "color": "U",
+      "color_identity": [
+        "U"
+      ],
+      "tags": [
+        "triggered ability",
+        "synergy-instant",
+        "synergy-sorcery",
+        "mill-self",
+        "evasion"
+      ],
+      "keywords": [
+        "Flying",
+        "Transform",
+        "Mill"
+      ]
+    },
+    {
+      "name": "Abomination",
+      "oracle_id": "2c57c4e9-0a46-45d6-92db-9203fb722b60",
+      "set": "4ed",
+      "collector_number": "117",
+      "include_pct": 0.01,
+      "card_type": "Creature — Horror",
+      "mana_cost": "{3}{B}{B}",
+      "cmc": 5.0,
+      "edhrec_rank": 25364,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abomination",
+      "scryfall_link": "https://scryfall.com/card/4ed/117/abomination?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/a/3/a363bc91-8278-448e-9d5c-564e4b51eb62.jpg?1559603880",
+      "color": "B",
+      "color_identity": [
+        "B"
+      ],
+      "tags": [
+        "delayed trigger",
+        "hate-blocker",
+        "single english word name",
+        "synergy-blocker-self"
+      ],
+      "keywords": []
+    },
+    {
+      "name": "Aboroth",
+      "oracle_id": "28f70f86-19a9-4811-bc10-423a05842d39",
+      "set": "wth",
+      "collector_number": "117",
+      "include_pct": 0.01,
+      "card_type": "Creature — Elemental",
+      "mana_cost": "{4}{G}{G}",
+      "cmc": 6.0,
+      "edhrec_rank": 25773,
+      "edhrec_link": "https://edhrec.com/route/?cc=Aboroth",
+      "scryfall_link": "https://scryfall.com/card/wth/117/aboroth?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/8/c/8c72ac67-e4fb-49a1-b1e5-cd2e414bec28.jpg?1562802060",
+      "color": "G",
+      "color_identity": [
+        "G"
+      ],
+      "tags": [
+        "drawback",
+        "gains mm counters",
+        "intervening if clause",
+        "french vanilla"
+      ],
+      "keywords": [
+        "Cumulative upkeep"
+      ]
+    },
+    {
+      "name": "Abbey Gargoyles",
+      "oracle_id": "c208b959-d0e4-4a9a-8255-2c7cc7596767",
+      "set": "5ed",
+      "collector_number": "1",
+      "include_pct": 0.0,
+      "card_type": "Creature — Gargoyle",
+      "mana_cost": "{2}{W}{W}{W}",
+      "cmc": 5.0,
+      "edhrec_rank": 28266,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abbey+Gargoyles",
+      "scryfall_link": "https://scryfall.com/card/5ed/1/abbey-gargoyles?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/2/9/29b5b70d-e5b9-4bc3-87b1-51dc6e5085a5.jpg?1595430467",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "hate-red",
+        "french vanilla",
+        "evasion"
+      ],
+      "keywords": [
+        "Flying",
+        "Protection"
+      ]
+    },
+    {
+      "name": "Abbey Matron",
+      "oracle_id": "62e3f285-886c-414e-b4ff-403a7c01c23a",
+      "set": "hml",
+      "collector_number": "2a",
+      "include_pct": 0.0,
+      "card_type": "Creature — Human Cleric",
+      "mana_cost": "{2}{W}",
+      "cmc": 3.0,
+      "edhrec_rank": 28891,
+      "edhrec_link": "https://edhrec.com/route/?cc=Abbey+Matron",
+      "scryfall_link": "https://scryfall.com/card/hml/2a/abbey-matron?utm_source=api",
+      "image_url": "https://cards.scryfall.io/normal/front/1/5/158caa84-da2e-4c4c-b24d-0c035c900e20.jpg?1562587048",
+      "color": "W",
+      "color_identity": [
+        "W"
+      ],
+      "tags": [
+        "activated ability",
+        "type addition human",
+        "armoring"
+      ],
+      "keywords": []
+    }
+  ]
+}
