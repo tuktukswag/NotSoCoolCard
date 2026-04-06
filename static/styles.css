@@ -7,7 +7,9 @@ body { margin: 0; font-family: Arial, sans-serif; background: #0f1115; color: #f
 .filters { padding: 16px 24px; border-bottom: 1px solid #2a2f3a; background: #11151d; }
 .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: start; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-input, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #303746; background: #0d1016; color: #f1f3f5; }
+input, select, button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #303746; background: #0d1016; color: #f1f3f5; }
+button { cursor: pointer; max-width: 140px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 .checkbox-label { justify-content: end; flex-direction: row; align-items: center; gap: 8px; padding-top: 24px; }
 .inline-check { padding-top: 8px; justify-content: flex-start; }
 .commander-fieldset { border: 1px solid #303746; border-radius: 12px; padding: 10px 12px 12px; min-height: 100%; }
@@ -15,7 +17,11 @@ input, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1p
 .color-checks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .mini-check { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
 .mini-check input, .checkbox-label input { width: auto; }
-.results-wrap { padding: 20px 24px 32px; }
+.pagination-wrap { padding: 14px 24px 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.bottom-pagination { padding-bottom: 24px; }
+.page-controls { display: flex; gap: 10px; }
+.page-summary { color: #c1c9d7; }
+.results-wrap { padding: 20px 24px 16px; }
 .results { display: grid; gap: 14px; }
 .card-row { display: grid; grid-template-columns: 220px 1fr; gap: 18px; padding: 16px; border: 1px solid #2b3140; border-radius: 18px; background: #171c25; }
 .image-wrap { display: flex; align-items: start; justify-content: center; }
@@ -34,5 +40,7 @@ code { font-family: Consolas, monospace; }
 @media (max-width: 900px) {
   .card-row { grid-template-columns: 1fr; }
   .title-row { flex-direction: column; }
-  .topbar { flex-direction: column; }
+  .topbar, .pagination-wrap { flex-direction: column; align-items: stretch; }
+  .page-controls { width: 100%; }
+  button { max-width: none; }
 }
