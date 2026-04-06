@@ -13,6 +13,7 @@
       <p class="muted">
         Search cards from your generated JSON file.
         {% if meta.query %}<span>Source query: <code>{{ meta.query }}</code></span>{% endif %}
+        {% if meta.prices_updated_at %}<span> • Prices updated: <code>{{ meta.prices_updated_at }}</code></span>{% endif %}
       </p>
     </div>
     <div class="summary" id="summary">Loading…</div>

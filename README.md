@@ -1,35 +1,19 @@
-# Cardsite + daily prices on Render
+# Cardsite + GitHub prices.json updater
 
-## What this package adds
-- your site still reads `cards.json`
-- prices are stored separately in Render Postgres
-- the website merges prices into each card at runtime
-- a cron job updates prices every 24h
+## What this package does
+- your site reads `cards.json`
+- prices are stored separately in `prices.json`
+- GitHub Actions updates `prices.json` every 24 hours
+- Render serves both files, with no database and no paid cron job
 
 ## Files
 - `app.py` - web app
-- `update_prices.py` - daily price updater for a Render Cron Job
+- `update_prices_json.py` - price updater script
+- `.github/workflows/update_prices.yml` - daily GitHub Action
 - `templates/` and `static/` - UI files
 - `requirements.txt`
 
-## 1. Put your `cards.json` in this folder
-You can either:
-- commit `cards.json` into the repo, or
-- set `CARDSITE_JSON` to an absolute path
-
-Most people should just keep `cards.json` in the repo folder for now.
-
-## 2. Create a Render Postgres database
-In Render:
-- New -> PostgreSQL
-- wait for it to be ready
-- copy the connection string
-
-Set `DATABASE_URL` as an environment variable on both:
-- your web service
-- your cron job
-
-## 3. Web service settings
+## Render web service
 Build command:
 ```bash
 pip install -r requirements.txt
@@ -40,32 +24,39 @@ Start command:
 python app.py
 ```
 
-## 4. Cron job settings
-Create a new Render Cron Job with the same repo.
+## Important files in your repo
+- `cards.json`
+- `prices.json`
 
-Build command:
-```bash
-pip install -r requirements.txt
+If `prices.json` is missing at first, the site still works. Prices just show as empty until the GitHub Action runs.
+
+You can also create an empty starter file:
+```json
+{
+  "meta": {},
+  "prices": {}
+}
 ```
 
-Start command:
-```bash
-python update_prices.py
-```
+## GitHub Actions
+This workflow runs:
+- every day at 03:00 UTC
+- or manually from the Actions tab using `Run workflow`
 
-Schedule:
-```text
-0 3 * * *
-```
+## Recommended setup
+1. Put `cards.json` in the repo root
+2. Add this package's files to the same repo
+3. Push to GitHub
+4. Deploy to Render
+5. In GitHub, go to Actions and run `Update prices.json` once manually
+6. Render will pick up the updated `prices.json` automatically after the push
 
-That means once per day at 03:00 UTC.
+## Optional environment variables
+- `CARDSITE_JSON` - custom path for cards.json
+- `CARDSITE_PRICES_JSON` - custom path for prices.json
+- `SCRYFALL_SLEEP` - request pause, default `0.12`
 
-## 5. Useful environment variables
-- `DATABASE_URL` - required for prices
-- `CARDSITE_JSON` - optional custom path to your cards file
-- `SCRYFALL_SLEEP` - optional pause between price requests, default `0.12`
-
-## 6. Notes
+## Notes
 - Prices are fetched from Scryfall per exact printing using `set` + `collector_number`
-- This keeps prices separate from your main JSON
-- Your site will still work without prices, but price fields will be empty
+- This keeps prices separate from your main card data
+- No database is required

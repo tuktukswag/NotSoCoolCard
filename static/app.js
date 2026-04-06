@@ -50,11 +50,9 @@ function getCommanderIdentity() {
 
 function cardFitsCommanderIdentity(card, commanderColors) {
   if (!commanderColors.length) return true;
-
   const cardColors = Array.isArray(card.color_identity) && card.color_identity.length
     ? card.color_identity
     : (card.color && card.color !== "COLORLESS" ? card.color.split("") : []);
-
   return cardColors.every(color => commanderColors.includes(color));
 }
 
@@ -83,10 +81,7 @@ function cardMatches(card) {
   if (includeFilter !== null && !(includePct <= includeFilter)) return false;
   if (cmcFilter !== null && !(cmc <= cmcFilter)) return false;
   if (priceFilter !== null && !(usdPrice !== null && usdPrice <= priceFilter)) return false;
-
-  if (el.limitCommander.checked && !cardFitsCommanderIdentity(card, commanderColors)) {
-    return false;
-  }
+  if (el.limitCommander.checked && !cardFitsCommanderIdentity(card, commanderColors)) return false;
 
   return true;
 }
@@ -96,27 +91,13 @@ function sortCards(cards) {
   const sorted = [...cards];
 
   sorted.sort((a, b) => {
-    if (mode === "include_desc") {
-      return (b.include_pct ?? -Infinity) - (a.include_pct ?? -Infinity) || String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "include_asc") {
-      return (a.include_pct ?? Infinity) - (b.include_pct ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "price_asc") {
-      return (numericPrice(a) ?? Infinity) - (numericPrice(b) ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "price_desc") {
-      return (numericPrice(b) ?? -Infinity) - (numericPrice(a) ?? -Infinity) || String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "name_asc") {
-      return String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "cmc_asc") {
-      return (a.cmc ?? Infinity) - (b.cmc ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    }
-    if (mode === "edhrec_rank_asc") {
-      return (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    }
+    if (mode === "include_desc") return (b.include_pct ?? -Infinity) - (a.include_pct ?? -Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "include_asc") return (a.include_pct ?? Infinity) - (b.include_pct ?? Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "price_asc") return (numericPrice(a) ?? Infinity) - (numericPrice(b) ?? Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "price_desc") return (numericPrice(b) ?? -Infinity) - (numericPrice(a) ?? -Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "name_asc") return String(a.name).localeCompare(String(b.name));
+    if (mode === "cmc_asc") return (a.cmc ?? Infinity) - (b.cmc ?? Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "edhrec_rank_asc") return (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity) || String(a.name).localeCompare(String(b.name));
     return 0;
   });
 
@@ -181,9 +162,7 @@ function renderCards(cards) {
 
     image.alt = card.name || "Card image";
     image.src = card.image_url || "";
-    if (!showImages || !card.image_url) {
-      imageWrap.style.display = "none";
-    }
+    if (!showImages || !card.image_url) imageWrap.style.display = "none";
 
     el.results.appendChild(node);
   }
@@ -209,10 +188,7 @@ async function init() {
   update();
 }
 
-for (const control of [
-  el.name, el.color, el.include, el.price, el.tag, el.type, el.cmc, el.sort, el.imageToggle,
-  el.limitCommander, el.commanderW, el.commanderU, el.commanderB, el.commanderR, el.commanderG
-]) {
+for (const control of [el.name, el.color, el.include, el.price, el.tag, el.type, el.cmc, el.sort, el.imageToggle, el.limitCommander, el.commanderW, el.commanderU, el.commanderB, el.commanderR, el.commanderG]) {
   control.addEventListener("input", update);
   control.addEventListener("change", update);
 }
