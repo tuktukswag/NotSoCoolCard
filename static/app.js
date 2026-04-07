@@ -168,6 +168,18 @@ function renderCards(cards){
     node.querySelector(".image-link").href = card.image_url || "#";
     const img = node.querySelector(".card-image");
     img.alt = card.name || "Card image"; img.src = card.image_url || "";
+    const flipBtn = node.querySelector(".flip-btn");
+    if(card.back_image_url){
+      flipBtn.style.display = "block";
+      let isFlipped = false;
+      flipBtn.addEventListener("click", () => {
+        isFlipped = !isFlipped;
+        img.src = isFlipped ? card.back_image_url : card.image_url;
+        flipBtn.textContent = isFlipped ? "↺" : "↻";
+      });
+    } else {
+      flipBtn.style.display = "none";
+    }
     if(!el.imageToggle.checked || !card.image_url) node.querySelector(".image-wrap").style.display = "none";
     el.results.appendChild(node);
   }
