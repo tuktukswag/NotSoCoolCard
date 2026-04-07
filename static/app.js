@@ -112,7 +112,7 @@ function updatePaginationUI(total){
 }
 
 function renderManaCost(manaCost){
-  if(!manaCost) return "Mana cost: —";
+  if(!manaCost) return "—";
   const wrapper = document.createElement("span");
   wrapper.className = "mana-pips";
   // Handle split cards with //
@@ -174,7 +174,8 @@ function renderCards(cards){
     const node = el.template.content.cloneNode(true);
     node.querySelector(".card-name").textContent = card.name || "Unknown";
     node.querySelector(".meta-row").textContent = `${card.card_type||"—"}${card.edhrec_rank ? " • EDHREC rank "+card.edhrec_rank : ""}`;
-    node.querySelector(".mana-row").innerHTML = `Mana cost: ${renderManaCost(card.mana_cost)}`;
+    const manaCostHtml = renderManaCost(card.mana_cost);
+    node.querySelector(".mana-row").innerHTML = manaCostHtml === "—" ? "—" : `Mana cost: ${manaCostHtml}`;
     node.querySelector(".tags-row").textContent = `Tags: ${asArray(card.tags).length ? asArray(card.tags).join(", ") : "—"}`;
     node.querySelector(".color-pill").textContent = `Color: ${card.color||"COLORLESS"}`;
     node.querySelector(".include-pill").textContent = `Include %: ${card.include_pct ?? "—"}`;
