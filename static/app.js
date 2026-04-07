@@ -47,7 +47,9 @@ const el = {
   deckUrlInput: document.getElementById("deckUrlInput"),
   fetchDeckBtn: document.getElementById("fetchDeckBtn"),
   decklistInput: document.getElementById("decklistInput"),
-  deckIncludeFilter: document.getElementById("deckIncludeFilter"),
+  deckThresholdMode: document.getElementById("deckThresholdMode"),
+  deckThresholdFilter: document.getElementById("deckThresholdFilter"),
+  deckThresholdLabel: document.getElementById("deckThresholdLabel"),
   excludeLandsCheckbox: document.getElementById("excludeLandsCheckbox"),
   checkDeckBtn: document.getElementById("checkDeckBtn"),
   deckInfoBox: document.getElementById("deckInfoBox"),
@@ -122,6 +124,26 @@ function renderManaCost(manaCost){
   return wrapper.outerHTML;
 }
 
+function renderColorIdentityPips(card){
+  const tokens = [];
+  if(Array.isArray(card.color_identity) && card.color_identity.length){
+    for(const color of card.color_identity){
+      if(color) tokens.push(`{${String(color).toUpperCase()}}`);
+    }
+  } else if(String(card.color || "").toUpperCase() === "COLORLESS"){
+    tokens.push("{C}");
+  }
+  if(!tokens.length) return "Identity: —";
+  const wrapper = document.createElement("span");
+  wrapper.className = "mana-pips";
+  for(const token of tokens){
+    const img = document.createElement("img");
+    img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
+    wrapper.appendChild(img);
+  }
+  return wrapper.outerHTML;
+}
+
 function renderCards(cards){
   el.results.innerHTML = "";
   if(!cards.length){ const d=document.createElement("div"); d.className="empty-state"; d.textContent="No cards match your filters."; el.results.appendChild(d); updatePaginationUI(0); return; }
@@ -138,7 +160,7 @@ function renderCards(cards){
     node.querySelector(".color-pill").textContent = `Color: ${card.color||"COLORLESS"}`;
     node.querySelector(".include-pill").textContent = `Include %: ${card.include_pct ?? "—"}`;
     node.querySelector(".cmc-pill").textContent = `MV: ${card.cmc ?? "—"}`;
-    node.querySelector(".commander-pill").textContent = `Commander: ${commanderLabel}`;
+    node.querySelector(".commander-pill").innerHTML = renderColorIdentityPips(card);
     node.querySelector(".price-pill").textContent = `SEK: ${formatSek(sekPrice(card))}`;
     node.querySelector(".edhrec-link").href = card.edhrec_link || "#";
     node.querySelector(".scryfall-link").href = card.scryfall_link || "#";
@@ -202,8 +224,10 @@ function renderDeckCheckResults(result){
   c.appendChild(s);
   if(result.blocked){ const w=document.createElement("div"); w.className="warning-box"; w.textContent=result.message; c.appendChild(w); return c; }
   if(!result.aboveThreshold.length){ const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below the threshold.`; c.appendChild(ok); }
-  if(result.aboveThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.aboveThreshold){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name}` : `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
-  if(result.underThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Under threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.underThreshold){ const li=document.createElement("li"); li.textContent = `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
+  const sectionGroup = document.createElement("div"); sectionGroup.className = "threshold-columns";
+  if(result.aboveThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.aboveThreshold){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name}` : `${o.quantity} ${o.name} — ${result.thresholdMode === "price" ? formatSek(o.price) : `${o.include_pct}%`}`; list.appendChild(li);} sec.appendChild(list); sectionGroup.appendChild(sec); }
+  if(result.underThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Under threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.underThreshold){ const li=document.createElement("li"); li.textContent = `${o.quantity} ${o.name} — ${result.thresholdMode === "price" ? formatSek(o.price) : `${o.include_pct}%`}`; list.appendChild(li);} sec.appendChild(list); sectionGroup.appendChild(sec); }
+  if(sectionGroup.children.length) c.appendChild(sectionGroup);
   if(result.excludedLands.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Excluded lands</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const l of result.excludedLands){ const li=document.createElement("li"); li.textContent = `${l.quantity} ${l.name}`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   if(result.basicLands.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Basic Lands</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const l of result.basicLands){ const li=document.createElement("li"); li.textContent = `${l.quantity} ${l.name}`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   return c;
@@ -213,8 +237,10 @@ function checkDeck(){
   const entries = parseDecklist(el.decklistInput.value), totalCards = entries.reduce((s,e)=>s+e.quantity,0); el.deckResults.innerHTML="";
   if(!entries.length){ el.deckInfoBox.textContent="No valid decklist lines found."; return; }
   el.deckInfoBox.textContent=`Deck contains ${totalCards} cards.`;
-  const threshold = Number(el.deckIncludeFilter.value||2), excludeLands = el.excludeLandsCheckbox.checked;
-  if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,landsCount:0,aboveThreshold:[],underThreshold:[],excludedLands:[],basicLands:[]})); return; }
+  const threshold = Number(el.deckThresholdFilter.value||2);
+  const thresholdMode = el.deckThresholdMode.value || "include";
+  const excludeLands = el.excludeLandsCheckbox.checked;
+  if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,landsCount:0,aboveThreshold:[],underThreshold:[],excludedLands:[],basicLands:[],thresholdMode})); return; }
   const aboveThreshold=[], underThreshold=[], excludedLands=[], basicLands=[]; let landsCount=0;
   for(const entry of entries){
     const card = CARD_LOOKUP.get(normalizeText(entry.name));
@@ -228,15 +254,21 @@ function checkDeck(){
       }
       if(excludeLands){
         excludedLands.push({quantity:entry.quantity,name:card.name});
-        continue; // Skip checking all lands if excluded
+        continue;
       }
     }
     const includePct = parseIncludePct(card);
-    const entryData = {quantity: entry.quantity, name: card.name, include_pct: includePct};
-    if(includePct <= threshold) underThreshold.push(entryData);
-    else aboveThreshold.push(entryData);
+    const cardPrice = sekPrice(card);
+    const entryData = {quantity: entry.quantity, name: card.name, include_pct: includePct, price: cardPrice};
+    if(thresholdMode === "price"){
+      if(cardPrice === null || cardPrice > threshold) aboveThreshold.push(entryData);
+      else underThreshold.push(entryData);
+    } else {
+      if(includePct <= threshold) underThreshold.push(entryData);
+      else aboveThreshold.push(entryData);
+    }
   }
-  el.deckResults.appendChild(renderDeckCheckResults({blocked:false,totalCards,landsCount,aboveThreshold,underThreshold,excludedLands,basicLands}));
+  el.deckResults.appendChild(renderDeckCheckResults({blocked:false,totalCards,landsCount,aboveThreshold,underThreshold,excludedLands,basicLands,thresholdMode}));
 }
 
 async function fetchDecklistFromUrl(){
@@ -265,6 +297,12 @@ async function fetchDecklistFromUrl(){
   }
 }
 
+function updateDeckThresholdLabel(){
+  const labelText = el.deckThresholdMode.value === "price" ? "Max SEK price" : "Max Include %";
+  const labelSpan = el.deckThresholdLabel.querySelector("span");
+  if(labelSpan) labelSpan.textContent = labelText;
+}
+
 function activateTab(which){
   const isSearch = which==="search";
   el.searchTabBtn.classList.toggle("active",isSearch);
@@ -287,6 +325,8 @@ for(const control of [el.name,el.color,el.include,el.price,el.tag,el.typeInclude
   control.addEventListener("input",()=>applyFilters(true));
   control.addEventListener("change",()=>applyFilters(true));
 }
+el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
+updateDeckThresholdLabel();
 el.nextPageBtn.addEventListener("click",nextPage); el.nextPageBtnBottom.addEventListener("click",nextPage);
 el.prevPageBtn.addEventListener("click",prevPage); el.prevPageBtnBottom.addEventListener("click",prevPage);
 el.searchTabBtn.addEventListener("click",()=>activateTab("search")); el.deckCheckTabBtn.addEventListener("click",()=>activateTab("deck"));
