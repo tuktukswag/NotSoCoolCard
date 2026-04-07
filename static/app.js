@@ -169,7 +169,7 @@ function renderCards(cards){
     const img = node.querySelector(".card-image");
     img.alt = card.name || "Card image"; img.src = card.image_url || "";
     const flipBtn = node.querySelector(".flip-btn");
-    if(card.back_image_url){
+    if(card.back_image_url && card.keywords && card.keywords.includes("Transform")){
       flipBtn.style.display = "block";
       let isFlipped = false;
       flipBtn.addEventListener("click", () => {
