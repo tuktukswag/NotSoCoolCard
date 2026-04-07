@@ -208,12 +208,25 @@ async function fetchDecklistFromUrl(){
   el.deckInfoBox.textContent="Fetching decklist…";
   try{
     const response = await fetch("/api/deck-resolve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
-    const data = await response.json();
-    if(!response.ok || !data.ok) throw new Error(data.error || "Could not fetch decklist");
+    const text = await response.text();
+    let data;
+    try{
+      data = JSON.parse(text);
+    }catch(err){
+      console.error("fetchDecklistFromUrl: invalid JSON response", text);
+      throw new Error("Invalid server response while fetching decklist.");
+    }
+    if(!response.ok || !data.ok){
+      console.error("fetchDecklistFromUrl error", response.status, data);
+      throw new Error(data.error || `Server returned ${response.status}`);
+    }
     el.decklistInput.value = data.decklist;
     const total = parseDecklist(data.decklist).reduce((s,e)=>s+e.quantity,0);
     el.deckInfoBox.textContent = `Fetched ${total} cards from ${data.source}.`;
-  }catch(error){ el.deckInfoBox.textContent = error.message || "Could not fetch decklist."; }
+  }catch(error){
+    console.error("fetchDecklistFromUrl catch", error);
+    el.deckInfoBox.textContent = error.message || "Could not fetch decklist.";
+  }
 }
 
 function activateTab(which){

@@ -7,7 +7,7 @@ This Flask app serves a frontend for card search and deck checking, using data f
 """
 
 from __future__ import annotations
-import json, os, re
+import json, logging, os, re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,8 @@ PRICES_FILE = Path(os.environ.get("CARDSITE_PRICES_JSON", BASE_DIR / "prices.jso
 
 # Initialize Flask application
 app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
+app.logger.setLevel(logging.DEBUG)
 
 # Helper function to load JSON from file, returning default if file doesn't exist
 def load_json_file(path: Path, default):
@@ -246,16 +248,30 @@ def api_symbology(): return jsonify({"symbols": get_symbology_map()})
 # API route to resolve decklist from URL
 @app.route("/api/deck-resolve", methods=["POST"])
 def api_deck_resolve():
-    data = request.get_json(silent=True) or {}
-    print(f"api_deck_resolve: received data {data}")
+    raw_body = request.get_data(as_text=True)
+    print(f"api_deck_resolve: raw_body={raw_body!r}")
+    print(f"api_deck_resolve: content-type={request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True)
+    if data is None:
+        try:
+            data = json.loads(raw_body or "{}")
+            print(f"api_deck_resolve: parsed raw JSON data={data}")
+        except Exception as exc:
+            print(f"api_deck_resolve: failed to parse JSON body: {exc}")
+            data = {}
+    else:
+        print(f"api_deck_resolve: received data={data}")
+
     url = (data.get("url") or "").strip()
-    if not url: 
+    if not url:
         print("api_deck_resolve: missing URL")
         return jsonify({"ok": False, "error": "Missing URL"}), 400
+
     resolved = resolve_deck_url(url)
-    if not resolved: 
+    if not resolved:
         print("api_deck_resolve: resolve_deck_url failed")
         return jsonify({"ok": False, "error": "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."}), 400
+
     source_name, decklist = resolved
     print(f"api_deck_resolve: success from {source_name}")
     return jsonify({"ok": True, "source": source_name, "decklist": decklist})
