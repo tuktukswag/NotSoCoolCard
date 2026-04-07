@@ -48,8 +48,7 @@ textarea { resize: vertical; min-height: 240px; font-family: Consolas, monospace
 .image-wrap { display: flex; align-items: start; justify-content: center; }
 .card-image { width: 210px; max-width: 100%; border-radius: 14px; }
 .flip-pill { width: auto; min-width: 42px; height: 32px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #394155; background: #0d1016; color: #f1f3f5; cursor: pointer; font-size: 18px; line-height: 1; }
-.title-row { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
-.card-name { margin: 0; font-size: 24px; }
+.card-name { margin: 0 0 12px 0; font-size: 24px; }
 .pill-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pill { border: 1px solid #394155; border-radius: 999px; padding: 6px 10px; font-size: 13px; color: #d6deeb; height: 32px; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
 .meta-row, .mana-row, .tags-row { margin-top: 10px; color: #c1c9d7; line-height: 1.5; }
