@@ -51,7 +51,7 @@ textarea { resize: vertical; min-height: 240px; font-family: Consolas, monospace
 .title-row { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
 .card-name { margin: 0; font-size: 24px; }
 .pill-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pill { border: 1px solid #394155; border-radius: 999px; padding: 6px 10px; font-size: 13px; color: #d6deeb; }
+.pill { border: 1px solid #394155; border-radius: 999px; padding: 6px 10px; font-size: 13px; color: #d6deeb; height: 32px; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
 .meta-row, .mana-row, .tags-row { margin-top: 10px; color: #c1c9d7; line-height: 1.5; }
 .link-row { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 12px; }
 a { color: #8ec5ff; text-decoration: none; }
