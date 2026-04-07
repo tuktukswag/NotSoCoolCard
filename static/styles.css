@@ -25,7 +25,7 @@ textarea { resize: vertical; min-height: 240px; font-family: Consolas, monospace
 .bottom-pagination { padding-bottom: 24px; }
 .page-controls { display: flex; gap: 10px; }
 .results-wrap, .deck-results-wrap { padding: 20px 24px 16px; }
-.results { display: grid; gap: 14px; }
+.results { display: grid; grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); gap: 14px; }
 .card-row { display: grid; grid-template-columns: 220px 1fr; gap: 18px; padding: 16px; border: 1px solid #2b3140; border-radius: 18px; background: #171c25; }
 .image-wrap { display: flex; align-items: start; justify-content: center; }
 .card-image { width: 210px; max-width: 100%; border-radius: 14px; }
@@ -43,4 +43,4 @@ a { color: #8ec5ff; text-decoration: none; }
 .success-box { border-color: #2d6b3b; background: #16271b; }
 .deck-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; padding: 14px; border: 1px solid #394155; border-radius: 12px; background: #171c25; }
 .report-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-@media (max-width: 900px) { .card-row { grid-template-columns: 1fr; } .title-row, .topbar, .pagination-wrap { flex-direction: column; align-items: stretch; } }
+@media (max-width: 900px) { .card-row { grid-template-columns: 1fr; } .title-row, .topbar, .pagination-wrap { flex-direction: column; align-items: stretch; } .results { grid-template-columns: 1fr; } }

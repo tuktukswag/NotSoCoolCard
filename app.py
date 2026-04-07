@@ -247,11 +247,17 @@ def api_symbology(): return jsonify({"symbols": get_symbology_map()})
 @app.route("/api/deck-resolve", methods=["POST"])
 def api_deck_resolve():
     data = request.get_json(silent=True) or {}
+    print(f"api_deck_resolve: received data {data}")
     url = (data.get("url") or "").strip()
-    if not url: return jsonify({"ok": False, "error": "Missing URL"}), 400
+    if not url: 
+        print("api_deck_resolve: missing URL")
+        return jsonify({"ok": False, "error": "Missing URL"}), 400
     resolved = resolve_deck_url(url)
-    if not resolved: return jsonify({"ok": False, "error": "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."}), 400
+    if not resolved: 
+        print("api_deck_resolve: resolve_deck_url failed")
+        return jsonify({"ok": False, "error": "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."}), 400
     source_name, decklist = resolved
+    print(f"api_deck_resolve: success from {source_name}")
     return jsonify({"ok": True, "source": source_name, "decklist": decklist})
 
 # Main entry point to run the Flask app
