@@ -176,11 +176,12 @@ function parseDecklist(text){
 function renderDeckCheckResults(result){
   const c = document.createElement("div"); c.className="deck-check-report";
   const s = document.createElement("div"); s.className="deck-summary";
-  s.innerHTML = `<div>Total cards: <strong>${result.totalCards}</strong></div><div>Checked cards: <strong>${result.checkedCount}</strong></div><div>Ignored cards: <strong>${result.ignoredCount}</strong></div><div>Offenders: <strong>${result.offenders.length}</strong></div>`;
+  s.innerHTML = `<div>Lands: <strong>${result.landsCount}</strong></div><div>Cards above threshold: <strong>${result.aboveThreshold.length}</strong></div>`;
   c.appendChild(s);
   if(result.blocked){ const w=document.createElement("div"); w.className="warning-box"; w.textContent=result.message; c.appendChild(w); return c; }
-  if(!result.offenders.length){ const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below ${result.threshold}% inclusion.`; c.appendChild(ok); }
-  if(result.offenders.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Cards failing the threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.offenders){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name} — assumed above ${result.threshold}% because it is not in the current dataset` : `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
+  if(!result.aboveThreshold.length){ const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below the threshold.`; c.appendChild(ok); }
+  if(result.aboveThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.aboveThreshold){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name} — assumed above threshold because it is not in the current dataset` : `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
+  if(result.basicLands.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Basic Lands</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const l of result.basicLands){ const li=document.createElement("li"); li.textContent = `${l.quantity} ${l.name}`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   return c;
 }
 
@@ -189,18 +190,22 @@ function checkDeck(){
   if(!entries.length){ el.deckInfoBox.textContent="No valid decklist lines found."; return; }
   el.deckInfoBox.textContent=`Deck contains ${totalCards} cards.`;
   const threshold = Number(el.deckIncludeFilter.value||2), excludeLands = el.excludeLandsCheckbox.checked;
-  if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,checkedCount:0,ignoredCount:0,offenders:[],threshold})); return; }
-  const offenders=[]; let checkedCount=0, ignoredCount=0;
+  if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,landsCount:0,aboveThreshold:[],basicLands:[]})); return; }
+  const aboveThreshold=[], basicLands=[]; let landsCount=0;
   for(const entry of entries){
     const card=CARD_LOOKUP.get(normalizeText(entry.name));
-    if(!card){ offenders.push({quantity:entry.quantity,name:entry.name,assumed:true}); checkedCount++; continue; }
+    if(!card){ aboveThreshold.push({quantity:entry.quantity,name:entry.name,assumed:true}); continue; }
     const isLand=normalizeText(card.card_type).includes("land");
-    if(excludeLands && isLand){ ignoredCount++; continue; }
-    checkedCount++;
+    if(isLand){
+      landsCount += entry.quantity;
+      if(card.supertypes && card.supertypes.includes("Basic")){ basicLands.push({quantity:entry.quantity,name:card.name}); }
+      if(excludeLands) continue; // Skip checking lands if excluded
+    }
+    // Check lands (if not excluded) and non-lands for threshold
     const includePct=Number(card.include_pct ?? Infinity);
-    if(!(includePct<=threshold)) offenders.push({quantity:entry.quantity,name:card.name,include_pct:includePct,assumed:false});
+    if(!(includePct<=threshold)) aboveThreshold.push({quantity:entry.quantity,name:card.name,include_pct:includePct,assumed:false});
   }
-  el.deckResults.appendChild(renderDeckCheckResults({blocked:false,totalCards,checkedCount,ignoredCount,offenders,threshold}));
+  el.deckResults.appendChild(renderDeckCheckResults({blocked:false,totalCards,landsCount,aboveThreshold,basicLands}));
 }
 
 async function fetchDecklistFromUrl(){

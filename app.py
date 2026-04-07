@@ -206,6 +206,11 @@ def resolve_archidekt(url: str):
             except Exception: 
                 print("Archidekt: failed to parse JSON")
                 continue
+            # Exclude maybeboard and considering sections
+            if "maybeboard" in data:
+                del data["maybeboard"]
+            if "considering" in data:
+                del data["considering"]
             found = []; extract_card_entries_from_json(data, found)
             if found:
                 print(f"Archidekt: extracted {len(found)} cards from JSON")
@@ -286,7 +291,10 @@ def api_deck_resolve():
     resolved = resolve_deck_url(url)
     if not resolved:
         print("api_deck_resolve: resolve_deck_url failed")
-        return jsonify({"ok": False, "error": "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."}), 400
+        error_msg = "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."
+        if "moxfield.com/decks/" in lowered:
+            error_msg += " Moxfield may be blocking automated requests; try pasting the decklist manually."
+        return jsonify({"ok": False, "error": error_msg}), 400
 
     source_name, decklist = resolved
     print(f"api_deck_resolve: success from {source_name}")
