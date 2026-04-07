@@ -319,6 +319,11 @@ async function init(){
   CARD_LOOKUP = buildCardLookup(ALL_CARDS);
   USD_SEK_RATE = cardsData?.meta?.usd_sek_rate != null ? Number(cardsData.meta.usd_sek_rate) : null;
   SYMBOLOGY = symData?.symbols || {};
+  document.querySelectorAll('.pip-symbol[data-symbol]').forEach(pip=>{
+    const symbolToken = pip.getAttribute('data-symbol');
+    const svgUrl = SYMBOLOGY[symbolToken];
+    if(svgUrl) pip.style.backgroundImage = `url('${svgUrl}')`;
+  });
   applyFilters(true);
 }
 

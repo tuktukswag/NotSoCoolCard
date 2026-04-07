@@ -17,8 +17,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .color-option input, .mini-check input { margin: 0; width: auto; }
 .color-option input[type="radio"], .color-option input[type="checkbox"], .mini-check input[type="checkbox"] { width: 16px; height: 16px; }
 .color-label { font-size: 13px; color: #d6deeb; }
-.pip { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; border: 1px solid #394155; background: transparent; }
-.pip-any { background: linear-gradient(135deg, #f1f3f5 20%, #737c8d 80%); }
+.pip { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; border: 1px solid #394155; background-size: contain; background-repeat: no-repeat; background-position: center; }
 .pip-w { background: #fff9d6; }
 .pip-u { background: #b0d7ff; }
 .pip-b { background: #7c7f9f; }
