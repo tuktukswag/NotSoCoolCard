@@ -1,8 +1,19 @@
-# Cardsite + GitHub prices updater + pagination + SEK
+# Cardsite tabs + deck checker
 
 This version adds:
-- prices displayed and filtered in SEK
-- daily USD/SEK conversion fetched during the price update
-- pagination with 100 cards per page
+- mana pips rendered with Scryfall symbol SVGs
+- mana value filter mode: <=, =, >=
+- type include / exclude filters
+- a separate Deck Check tab
+- best-effort deck URL import for public Moxfield / Archidekt / ManaBox links
 
-Replace your current app files with these ones, keep `cards.json` in the repo root, and keep or create `prices.json`.
+Replace:
+- app.py
+- templates/index.html
+- static/app.js
+- static/styles.css
+- requirements.txt
+
+Keep:
+- cards.json
+- prices.json

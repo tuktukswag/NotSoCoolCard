@@ -20,74 +20,137 @@
     <div class="summary" id="summary">Loading…</div>
   </header>
 
-  <section class="filters">
-    <div class="filter-grid">
-      <label>Name<input id="nameFilter" type="text" placeholder="Storm Herd"></label>
+  <nav class="tab-nav">
+    <button id="searchTabBtn" class="tab-btn active" type="button">Search</button>
+    <button id="deckCheckTabBtn" class="tab-btn" type="button">Deck Check</button>
+  </nav>
 
-      <label>Exact card color
-        <select id="colorFilter">
-          <option value="">Any</option>
-          <option>W</option><option>U</option><option>B</option><option>R</option><option>G</option>
-          <option>WU</option><option>WB</option><option>WR</option><option>WG</option>
-          <option>UB</option><option>UR</option><option>UG</option><option>BR</option><option>BG</option><option>RG</option>
-          <option>WUB</option><option>WUR</option><option>WUG</option><option>WBR</option><option>WBG</option><option>WRG</option>
-          <option>UBR</option><option>UBG</option><option>URG</option><option>BRG</option>
-          <option>WUBR</option><option>WUBG</option><option>WURG</option><option>WBRG</option><option>UBRG</option>
-          <option>WUBRG</option><option>COLORLESS</option>
-        </select>
-      </label>
+  <main>
+    <section id="searchTab" class="tab-panel active">
+      <section class="filters">
+        <div class="filter-grid">
+          <label>Name<input id="nameFilter" type="text" placeholder="Storm Herd"></label>
 
-      <fieldset class="commander-fieldset">
-        <legend>Commander color identity</legend>
-        <div class="color-checks">
-          <label class="mini-check"><input id="commanderW" type="checkbox"> W</label>
-          <label class="mini-check"><input id="commanderU" type="checkbox"> U</label>
-          <label class="mini-check"><input id="commanderB" type="checkbox"> B</label>
-          <label class="mini-check"><input id="commanderR" type="checkbox"> R</label>
-          <label class="mini-check"><input id="commanderG" type="checkbox"> G</label>
+          <label>Exact card color
+            <select id="colorFilter">
+              <option value="">Any</option>
+              <option>W</option><option>U</option><option>B</option><option>R</option><option>G</option>
+              <option>WU</option><option>WB</option><option>WR</option><option>WG</option>
+              <option>UB</option><option>UR</option><option>UG</option><option>BR</option><option>BG</option><option>RG</option>
+              <option>WUB</option><option>WUR</option><option>WUG</option><option>WBR</option><option>WBG</option><option>WRG</option>
+              <option>UBR</option><option>UBG</option><option>URG</option><option>BRG</option>
+              <option>WUBR</option><option>WUBG</option><option>WURG</option><option>WBRG</option><option>UBRG</option>
+              <option>WUBRG</option><option>COLORLESS</option>
+            </select>
+          </label>
+
+          <fieldset class="commander-fieldset">
+            <legend>Commander color identity</legend>
+            <div class="color-checks">
+              <label class="mini-check"><input id="commanderW" type="checkbox"> W</label>
+              <label class="mini-check"><input id="commanderU" type="checkbox"> U</label>
+              <label class="mini-check"><input id="commanderB" type="checkbox"> B</label>
+              <label class="mini-check"><input id="commanderR" type="checkbox"> R</label>
+              <label class="mini-check"><input id="commanderG" type="checkbox"> G</label>
+            </div>
+            <label class="checkbox-label inline-check"><input id="limitToCommanderIdentity" type="checkbox"> Limit cards to this commander identity</label>
+          </fieldset>
+
+          <label>Max Include %<input id="includeFilter" type="number" step="0.01" min="0" placeholder="2.00"></label>
+          <label>Max SEK price<input id="priceFilter" type="number" step="0.01" min="0" placeholder="50.00"></label>
+
+          <label>Type include (comma-separated)
+            <input id="typeIncludeFilter" type="text" placeholder="instant, sorcery">
+          </label>
+
+          <label>Type exclude (comma-separated)
+            <input id="typeExcludeFilter" type="text" placeholder="enchantment">
+          </label>
+
+          <label>Tag contains<input id="tagFilter" type="text" placeholder="lifegain matters"></label>
+
+          <label>Mana value
+            <div class="inline-pair">
+              <select id="cmcModeFilter">
+                <option value="lte">≤</option>
+                <option value="eq">=</option>
+                <option value="gte">≥</option>
+              </select>
+              <input id="cmcFilter" type="number" step="0.5" min="0" placeholder="4">
+            </div>
+          </label>
+
+          <label>Sort by
+            <select id="sortFilter">
+              <option value="include_desc">Include %: highest first</option>
+              <option value="include_asc">Include %: lowest first</option>
+              <option value="price_asc">SEK: low to high</option>
+              <option value="price_desc">SEK: high to low</option>
+              <option value="name_asc">Name: A-Z</option>
+              <option value="cmc_asc">Mana value: low to high</option>
+              <option value="edhrec_rank_asc">EDHREC rank: low to high</option>
+            </select>
+          </label>
+
+          <label class="checkbox-label"><input id="imageToggle" type="checkbox" checked> Show images</label>
         </div>
-        <label class="checkbox-label inline-check"><input id="limitToCommanderIdentity" type="checkbox"> Limit cards to this commander identity</label>
-      </fieldset>
+      </section>
 
-      <label>Max Include %<input id="includeFilter" type="number" step="0.01" min="0" placeholder="2.00"></label>
-      <label>Max SEK price<input id="priceFilter" type="number" step="0.01" min="0" placeholder="50.00"></label>
-      <label>Tag contains<input id="tagFilter" type="text" placeholder="lifegain matters"></label>
-      <label>Type contains<input id="typeFilter" type="text" placeholder="Creature"></label>
-      <label>Max mana value<input id="cmcFilter" type="number" step="0.5" min="0" placeholder="4"></label>
+      <section class="pagination-wrap">
+        <div class="page-summary" id="pageSummary">Page 1</div>
+        <div class="page-controls">
+          <button id="prevPageBtn" type="button">Previous</button>
+          <button id="nextPageBtn" type="button">Next</button>
+        </div>
+      </section>
 
-      <label>Sort by
-        <select id="sortFilter">
-          <option value="include_desc">Include %: highest first</option>
-          <option value="include_asc">Include %: lowest first</option>
-          <option value="price_asc">SEK: low to high</option>
-          <option value="price_desc">SEK: high to low</option>
-          <option value="name_asc">Name: A-Z</option>
-          <option value="cmc_asc">Mana value: low to high</option>
-          <option value="edhrec_rank_asc">EDHREC rank: low to high</option>
-        </select>
-      </label>
+      <section class="results-wrap"><div id="results" class="results"></div></section>
 
-      <label class="checkbox-label"><input id="imageToggle" type="checkbox" checked> Show images</label>
-    </div>
-  </section>
+      <section class="pagination-wrap bottom-pagination">
+        <div class="page-summary" id="pageSummaryBottom">Page 1</div>
+        <div class="page-controls">
+          <button id="prevPageBtnBottom" type="button">Previous</button>
+          <button id="nextPageBtnBottom" type="button">Next</button>
+        </div>
+      </section>
+    </section>
 
-  <section class="pagination-wrap">
-    <div class="page-summary" id="pageSummary">Page 1</div>
-    <div class="page-controls">
-      <button id="prevPageBtn" type="button">Previous</button>
-      <button id="nextPageBtn" type="button">Next</button>
-    </div>
-  </section>
+    <section id="deckCheckTab" class="tab-panel">
+      <section class="filters">
+        <div class="deck-grid">
+          <label>Deck URL (Moxfield / Archidekt / ManaBox)
+            <input id="deckUrlInput" type="text" placeholder="Paste a public deck URL">
+          </label>
+          <div class="deck-url-actions">
+            <button id="fetchDeckBtn" type="button">Fetch decklist</button>
+          </div>
 
-  <section class="results-wrap"><div id="results" class="results"></div></section>
+          <label class="full-width">Decklist
+            <textarea id="decklistInput" rows="16" placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Storm Herd"></textarea>
+          </label>
 
-  <section class="pagination-wrap bottom-pagination">
-    <div class="page-summary" id="pageSummaryBottom">Page 1</div>
-    <div class="page-controls">
-      <button id="prevPageBtnBottom" type="button">Previous</button>
-      <button id="nextPageBtnBottom" type="button">Next</button>
-    </div>
-  </section>
+          <div class="deck-controls">
+            <label>Max Include %
+              <input id="deckIncludeFilter" type="number" step="0.01" min="0" value="2">
+            </label>
+            <label class="checkbox-label compact">
+              <input id="excludeLandsCheckbox" type="checkbox" checked>
+              Exclude lands
+            </label>
+            <button id="checkDeckBtn" type="button">Check deck</button>
+          </div>
+
+          <div id="deckInfoBox" class="info-box">
+            Paste a decklist or fetch one from a supported public URL.
+          </div>
+        </div>
+      </section>
+
+      <section class="deck-results-wrap">
+        <div id="deckResults"></div>
+      </section>
+    </section>
+  </main>
 
   <template id="cardTemplate">
     <article class="card-row">
