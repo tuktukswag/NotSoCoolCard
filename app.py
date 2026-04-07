@@ -27,13 +27,13 @@ def load_cards_payload() -> dict[str, Any]:
     return {"meta": {"warning": "Unexpected cards JSON structure."}, "cards": []}
 
 def load_prices_payload() -> dict[str, Any]:
-    data = load_json_file(PRICES_FILE, {"meta": {}, "prices": {}})
-    if isinstance(data, dict) and "prices" in data:
-        data.setdefault("meta", {})
-        return data
+    data = load_json_file(PRICES_FILE, {"meta": {}, "prices": {}, "fx": {}})
     if isinstance(data, dict):
-        return {"meta": {}, "prices": data}
-    return {"meta": {"warning": "Unexpected prices JSON structure."}, "prices": {}}
+        data.setdefault("meta", {})
+        data.setdefault("prices", {})
+        data.setdefault("fx", {})
+        return data
+    return {"meta": {"warning": "Unexpected prices JSON structure."}, "prices": {}, "fx": {}}
 
 def card_key(card: dict[str, Any]) -> str:
     set_code = str(card.get("set") or "").lower()
@@ -46,14 +46,19 @@ def merged_payload() -> dict[str, Any]:
     cards_payload = load_cards_payload()
     prices_payload = load_prices_payload()
     prices_map = prices_payload.get("prices", {})
+    fx = prices_payload.get("fx", {})
+
     merged_cards = []
     for card in cards_payload.get("cards", []):
         merged = dict(card)
         merged["price"] = prices_map.get(card_key(card), {})
         merged_cards.append(merged)
+
     meta = dict(cards_payload.get("meta", {}))
     meta["prices_enabled"] = bool(prices_map)
     meta["prices_updated_at"] = prices_payload.get("meta", {}).get("updated_at")
+    meta["usd_sek_rate"] = fx.get("usd_sek")
+    meta["fx_updated_at"] = fx.get("updated_at")
     return {"meta": meta, "cards": merged_cards}
 
 @app.route("/")

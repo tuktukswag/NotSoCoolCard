@@ -2,6 +2,7 @@ let ALL_CARDS = [];
 const PAGE_SIZE = 100;
 let currentPage = 1;
 let currentFilteredSorted = [];
+let USD_SEK_RATE = null;
 
 const el = {
   name: document.getElementById("nameFilter"),
@@ -32,7 +33,25 @@ const el = {
 
 function asArray(value) { if (Array.isArray(value)) return value; if (!value) return []; return [value]; }
 function normalizeText(value) { return String(value || "").toLowerCase().trim(); }
-function numericPrice(card) { const usd = card?.price?.usd; if (usd === null || usd === undefined || usd === "") return null; const value = Number(usd); return Number.isFinite(value) ? value : null; }
+
+function usdPrice(card) {
+  const usd = card?.price?.usd;
+  if (usd === null || usd === undefined || usd === "") return null;
+  const value = Number(usd);
+  return Number.isFinite(value) ? value : null;
+}
+
+function sekPrice(card) {
+  const usd = usdPrice(card);
+  if (usd === null || USD_SEK_RATE === null) return null;
+  const value = usd * USD_SEK_RATE;
+  return Number.isFinite(value) ? value : null;
+}
+
+function formatSek(value) {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
 
 function getCommanderIdentity() {
   const colors = [];
@@ -66,7 +85,7 @@ function cardMatches(card) {
   const type = normalizeText(card.card_type);
   const includePct = Number(card.include_pct ?? Infinity);
   const cmc = Number(card.cmc ?? Infinity);
-  const usdPrice = numericPrice(card);
+  const sek = sekPrice(card);
 
   if (nameFilter && !name.includes(nameFilter)) return false;
   if (colorFilter && color !== colorFilter) return false;
@@ -74,7 +93,7 @@ function cardMatches(card) {
   if (typeFilter && !type.includes(typeFilter)) return false;
   if (includeFilter !== null && !(includePct <= includeFilter)) return false;
   if (cmcFilter !== null && !(cmc <= cmcFilter)) return false;
-  if (priceFilter !== null && !(usdPrice !== null && usdPrice <= priceFilter)) return false;
+  if (priceFilter !== null && !(sek !== null && sek <= priceFilter)) return false;
   if (el.limitCommander.checked && !cardFitsCommanderIdentity(card, commanderColors)) return false;
   return true;
 }
@@ -85,8 +104,8 @@ function sortCards(cards) {
   sorted.sort((a, b) => {
     if (mode === "include_desc") return (b.include_pct ?? -Infinity) - (a.include_pct ?? -Infinity) || String(a.name).localeCompare(String(b.name));
     if (mode === "include_asc") return (a.include_pct ?? Infinity) - (b.include_pct ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    if (mode === "price_asc") return (numericPrice(a) ?? Infinity) - (numericPrice(b) ?? Infinity) || String(a.name).localeCompare(String(b.name));
-    if (mode === "price_desc") return (numericPrice(b) ?? -Infinity) - (numericPrice(a) ?? -Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "price_asc") return (sekPrice(a) ?? Infinity) - (sekPrice(b) ?? Infinity) || String(a.name).localeCompare(String(b.name));
+    if (mode === "price_desc") return (sekPrice(b) ?? -Infinity) - (sekPrice(a) ?? -Infinity) || String(a.name).localeCompare(String(b.name));
     if (mode === "name_asc") return String(a.name).localeCompare(String(b.name));
     if (mode === "cmc_asc") return (a.cmc ?? Infinity) - (b.cmc ?? Infinity) || String(a.name).localeCompare(String(b.name));
     if (mode === "edhrec_rank_asc") return (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity) || String(a.name).localeCompare(String(b.name));
@@ -150,20 +169,22 @@ function renderCards(cards) {
     const scryfallLink = node.querySelector(".scryfall-link");
     const imageLink = node.querySelector(".image-link");
 
-    const usd = card?.price?.usd || "—";
-    const usdFoil = card?.price?.usd_foil || "—";
+    const usd = usdPrice(card);
+    const sek = sekPrice(card);
+    const sekFoil = card?.price?.usd_foil ? Number(card.price.usd_foil) * USD_SEK_RATE : null;
     const eur = card?.price?.eur || "—";
 
     name.textContent = card.name || "Unknown";
     meta.textContent = `${card.card_type || "—"}${card.edhrec_rank ? " • EDHREC rank " + card.edhrec_rank : ""}`;
     mana.textContent = `Mana cost: ${card.mana_cost || "—"} • Mana value: ${card.cmc ?? "—"}`;
-    priceRow.textContent = `Price: USD ${usd} • Foil ${usdFoil} • EUR ${eur}`;
+    priceRow.textContent = `Price: SEK ${formatSek(sek)} • Foil SEK ${formatSek(sekFoil)} • EUR ${eur}`;
     tags.textContent = `Tags: ${asArray(card.tags).length ? asArray(card.tags).join(", ") : "—"}`;
     colorPill.textContent = `Color: ${card.color || "COLORLESS"}`;
     includePill.textContent = `Include %: ${card.include_pct ?? "—"}`;
     cmcPill.textContent = `MV: ${card.cmc ?? "—"}`;
     commanderPill.textContent = `Commander: ${commanderLabel}`;
-    pricePill.textContent = `USD: ${usd}`;
+    pricePill.textContent = `SEK: ${formatSek(sek)}`;
+
     edhrecLink.href = card.edhrec_link || "#";
     scryfallLink.href = card.scryfall_link || "#";
     imageLink.href = card.image_url || "#";
@@ -206,6 +227,7 @@ async function init() {
   const response = await fetch("/api/cards");
   const data = await response.json();
   ALL_CARDS = Array.isArray(data.cards) ? data.cards : [];
+  USD_SEK_RATE = data?.meta?.usd_sek_rate !== undefined && data?.meta?.usd_sek_rate !== null ? Number(data.meta.usd_sek_rate) : null;
   applyFilters(true);
 }
 

@@ -14,6 +14,7 @@
         Search cards from your generated JSON file.
         {% if meta.query %}<span>Source query: <code>{{ meta.query }}</code></span>{% endif %}
         {% if meta.prices_updated_at %}<span> • Prices updated: <code>{{ meta.prices_updated_at }}</code></span>{% endif %}
+        {% if meta.usd_sek_rate %}<span> • USD/SEK: <code>{{ meta.usd_sek_rate }}</code></span>{% endif %}
       </p>
     </div>
     <div class="summary" id="summary">Loading…</div>
@@ -49,7 +50,7 @@
       </fieldset>
 
       <label>Max Include %<input id="includeFilter" type="number" step="0.01" min="0" placeholder="2.00"></label>
-      <label>Max USD price<input id="priceFilter" type="number" step="0.01" min="0" placeholder="5.00"></label>
+      <label>Max SEK price<input id="priceFilter" type="number" step="0.01" min="0" placeholder="50.00"></label>
       <label>Tag contains<input id="tagFilter" type="text" placeholder="lifegain matters"></label>
       <label>Type contains<input id="typeFilter" type="text" placeholder="Creature"></label>
       <label>Max mana value<input id="cmcFilter" type="number" step="0.5" min="0" placeholder="4"></label>
@@ -58,8 +59,8 @@
         <select id="sortFilter">
           <option value="include_desc">Include %: highest first</option>
           <option value="include_asc">Include %: lowest first</option>
-          <option value="price_asc">Price: low to high</option>
-          <option value="price_desc">Price: high to low</option>
+          <option value="price_asc">SEK: low to high</option>
+          <option value="price_desc">SEK: high to low</option>
           <option value="name_asc">Name: A-Z</option>
           <option value="cmc_asc">Mana value: low to high</option>
           <option value="edhrec_rank_asc">EDHREC rank: low to high</option>

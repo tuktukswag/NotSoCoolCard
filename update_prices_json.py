@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, time
+import json, os, time, xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
@@ -56,12 +56,36 @@ def fetch_card_prices(card: dict):
         "tix": prices.get("tix"),
     }
 
+def fetch_usd_sek_rate():
+    # ECB daily reference rates XML: base EUR, includes USD and SEK.
+    url = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    r = safe_get(url, headers={"Accept": "application/xml,text/xml"})
+    if not r:
+        return None
+    root = ET.fromstring(r.text)
+    usd_rate = None
+    sek_rate = None
+    for elem in root.iter():
+        currency = elem.attrib.get("currency")
+        rate = elem.attrib.get("rate")
+        if currency == "USD": usd_rate = float(rate)
+        if currency == "SEK": sek_rate = float(rate)
+    if usd_rate and sek_rate:
+        return sek_rate / usd_rate
+    return None
+
 def main():
     cards = load_cards()
     print(f"Loaded {len(cards)} cards from {CARDS_FILE.name}")
+
+    usd_sek = fetch_usd_sek_rate()
+    if usd_sek is None:
+        raise RuntimeError("Could not fetch USD/SEK exchange rate")
+
     prices = {}
     updated = 0
     skipped = 0
+
     for idx, card in enumerate(cards, start=1):
         card_prices = fetch_card_prices(card)
         if not card_prices:
@@ -70,7 +94,12 @@ def main():
         updated += 1
         if idx % 100 == 0: print(f"Processed {idx}/{len(cards)} cards...")
         time.sleep(SCRYFALL_SLEEP)
-    payload = {"meta": {"updated_at": datetime.now(timezone.utc).isoformat(), "card_count": len(prices)}, "prices": prices}
+
+    payload = {
+        "meta": {"updated_at": datetime.now(timezone.utc).isoformat(), "card_count": len(prices)},
+        "fx": {"usd_sek": usd_sek, "updated_at": datetime.now(timezone.utc).isoformat()},
+        "prices": prices
+    }
     with open(PRICES_FILE, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     print(f"Done. Updated {updated} cards, skipped {skipped}. Wrote {PRICES_FILE.name}")
