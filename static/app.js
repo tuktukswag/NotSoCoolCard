@@ -187,9 +187,9 @@ function renderCards(cards){
     node.querySelector(".image-link").href = card.image_url || "#";
     const img = node.querySelector(".card-image");
     img.alt = card.name || "Card image"; img.src = card.image_url || "";
-    const flipBtn = node.querySelector(".flip-btn");
+    const flipBtn = node.querySelector(".flip-pill");
     if(card.back_image_url && card.keywords && card.keywords.includes("Transform")){
-      flipBtn.style.display = "block";
+      flipBtn.style.display = "inline-flex";
       let isFlipped = false;
       flipBtn.addEventListener("click", () => {
         isFlipped = !isFlipped;
