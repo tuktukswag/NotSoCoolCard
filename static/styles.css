@@ -15,7 +15,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .color-choices, .color-checks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .color-option, .mini-check { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid #303746; background: #0d1016; cursor: pointer; }
 .color-option input, .mini-check input { margin: 0; width: auto; }
-.color-option input[type="radio"], .mini-check input[type="checkbox"] { width: 16px; height: 16px; }
+.color-option input[type="radio"], .color-option input[type="checkbox"], .mini-check input[type="checkbox"] { width: 16px; height: 16px; }
 .color-label { font-size: 13px; color: #d6deeb; }
 .pip { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; border: 1px solid #394155; background: transparent; }
 .pip-any { background: linear-gradient(135deg, #f1f3f5 20%, #737c8d 80%); }
