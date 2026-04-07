@@ -141,35 +141,58 @@ def moxfield_from_html(url: str):
 # Resolve decklist from Moxfield URL using API or HTML parsing
 def resolve_moxfield(url: str):
     deck_id = extract_moxfield_id(url)
+    print(f"Moxfield: extracted deck_id {deck_id}")
     if not deck_id: return None
     for api_url in [f"https://api.moxfield.com/v2/decks/all/{deck_id}", f"https://api.moxfield.com/v2/decks/all/{deck_id}/export"]:
+        print(f"Moxfield: trying {api_url}")
         r = safe_get(api_url, headers={"Accept": "application/json,text/plain;q=0.9,*/*;q=0.8"})
-        if not r: continue
+        if not r:
+            print(f"Moxfield: no response from {api_url}")
+            continue
+        print(f"Moxfield: got response from {api_url}")
         if "application/json" in r.headers.get("Content-Type",""):
             try: data = r.json()
             except Exception: data = None
             if data is not None:
                 found = []; extract_card_entries_from_json(data, found)
-                if found: return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in found))
+                if found:
+                    print(f"Moxfield: extracted {len(found)} cards from JSON")
+                    return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in found))
         else:
             parsed = parse_plain_decklist(r.text)
-            if parsed: return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in parsed))
+            if parsed:
+                print(f"Moxfield: parsed {len(parsed)} cards from plain text")
+                return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in parsed))
+    print("Moxfield: trying HTML scraping")
     html_found = moxfield_from_html(url)
-    if html_found: return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in html_found))
+    if html_found:
+        print(f"Moxfield: extracted {len(html_found)} cards from HTML")
+        return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in html_found))
+    print("Moxfield: failed to extract decklist")
     return None
 
 # Resolve decklist from Archidekt URL using API
 def resolve_archidekt(url: str):
     deck_id = extract_archidekt_id(url)
+    print(f"Archidekt: extracted deck_id {deck_id}")
     if not deck_id: return None
     for api_url in [f"https://archidekt.com/api/decks/{deck_id}/", f"https://archidekt.com/api/decks/{deck_id}/small/"]:
+        print(f"Archidekt: trying {api_url}")
         r = safe_get(api_url, headers={"Accept": "application/json,text/plain;q=0.9,*/*;q=0.8"})
-        if not r: continue
+        if not r:
+            print(f"Archidekt: no response from {api_url}")
+            continue
+        print(f"Archidekt: got response from {api_url}")
         if "application/json" in r.headers.get("Content-Type",""):
             try: data = r.json()
-            except Exception: continue
+            except Exception: 
+                print("Archidekt: failed to parse JSON")
+                continue
             found = []; extract_card_entries_from_json(data, found)
-            if found: return ("archidekt", "\n".join(f'{e["quantity"]} {e["name"]}' for e in found))
+            if found:
+                print(f"Archidekt: extracted {len(found)} cards from JSON")
+                return ("archidekt", "\n".join(f'{e["quantity"]} {e["name"]}' for e in found))
+    print("Archidekt: failed to extract decklist")
     return None
 
 # Resolve decklist from generic HTML page by parsing text
@@ -183,15 +206,20 @@ def resolve_generic_html(url: str, source_name: str):
 # Main function to resolve decklist from various URL types
 def resolve_deck_url(url: str):
     lowered = url.lower().strip()
+    print(f"Resolving deck URL: {url}")
     if "moxfield.com/decks/" in lowered:
+        print("Detected Moxfield URL")
         result = resolve_moxfield(url)
         if result: return result
     if "archidekt.com/decks/" in lowered:
+        print("Detected Archidekt URL")
         result = resolve_archidekt(url)
         if result: return result
     if "manabox" in lowered:
+        print("Detected Manabox URL")
         result = resolve_generic_html(url, "manabox")
         if result: return result
+    print("Falling back to generic HTML parsing")
     return resolve_generic_html(url, "generic")
 
 # Cached function to fetch mana symbol SVG URIs from Scryfall API
