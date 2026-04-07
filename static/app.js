@@ -115,12 +115,30 @@ function renderManaCost(manaCost){
   if(!manaCost) return "Mana cost: —";
   const wrapper = document.createElement("span");
   wrapper.className = "mana-pips";
-  const tokens = String(manaCost).match(/\{[^}]+\}/g) || [];
-  if(!tokens.length){ wrapper.textContent = manaCost; return wrapper.outerHTML; }
-  for(const token of tokens){
-    const img = document.createElement("img");
-    img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
-    wrapper.appendChild(img);
+  // Handle split cards with //
+  if(manaCost.includes(" // ")){
+    const parts = manaCost.split(" // ");
+    for(let i = 0; i < parts.length; i++){
+      const tokens = String(parts[i]).match(/\{[^}]+\}/g) || [];
+      for(const token of tokens){
+        const img = document.createElement("img");
+        img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
+        wrapper.appendChild(img);
+      }
+      if(i < parts.length - 1){
+        const slash = document.createElement("span");
+        slash.textContent = " // ";
+        wrapper.appendChild(slash);
+      }
+    }
+  } else {
+    const tokens = String(manaCost).match(/\{[^}]+\}/g) || [];
+    if(!tokens.length){ wrapper.textContent = manaCost; return wrapper.outerHTML; }
+    for(const token of tokens){
+      const img = document.createElement("img");
+      img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
+      wrapper.appendChild(img);
+    }
   }
   return wrapper.outerHTML;
 }
