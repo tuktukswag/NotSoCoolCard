@@ -115,17 +115,26 @@ def extract_card_entries_from_json(obj: Any, found):
             if key in obj and isinstance(obj[key], int):
                 qty = obj[key]; break
         possible_name = None
-        if isinstance(obj.get("name"), str): possible_name = obj["name"]
-        elif isinstance(obj.get("card"), dict) and isinstance(obj["card"].get("name"), str): possible_name = obj["card"]["name"]
-        elif isinstance(obj.get("oracleCard"), dict) and isinstance(obj["oracleCard"].get("name"), str): possible_name = obj["oracleCard"]["name"]
+        if isinstance(obj.get("name"), str):
+            possible_name = obj["name"]
+        elif isinstance(obj.get("card"), dict):
+            card_obj = obj["card"]
+            if isinstance(card_obj.get("name"), str):
+                possible_name = card_obj["name"]
+            elif isinstance(card_obj.get("displayName"), str):
+                possible_name = card_obj["displayName"]
+            elif isinstance(card_obj.get("oracleCard"), dict) and isinstance(card_obj["oracleCard"].get("name"), str):
+                possible_name = card_obj["oracleCard"]["name"]
+        elif isinstance(obj.get("oracleCard"), dict) and isinstance(obj["oracleCard"].get("name"), str):
+            possible_name = obj["oracleCard"]["name"]
         if qty and possible_name: found.append({"quantity": qty, "name": possible_name})
         for v in obj.values(): extract_card_entries_from_json(v, found)
     elif isinstance(obj, list):
         for i in obj: extract_card_entries_from_json(i, found)
 
 # Extract decklist from Moxfield HTML page
-def moxfield_from_html(url: str):
-    r = safe_get(url)
+def moxfield_from_html(url: str, headers=None):
+    r = safe_get(url, headers=headers)
     if not r: return None
     parsed = parse_plain_decklist("\n".join(BeautifulSoup(r.text, "html.parser").stripped_strings))
     if parsed: return parsed
@@ -145,9 +154,16 @@ def resolve_moxfield(url: str):
     deck_id = extract_moxfield_id(url)
     print(f"Moxfield: extracted deck_id {deck_id}")
     if not deck_id: return None
+    mox_headers = {
+        "Accept": "application/json,text/plain;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://moxfield.com/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Connection": "keep-alive",
+    }
     for api_url in [f"https://api.moxfield.com/v2/decks/all/{deck_id}", f"https://api.moxfield.com/v2/decks/all/{deck_id}/export"]:
         print(f"Moxfield: trying {api_url}")
-        r = safe_get(api_url, headers={"Accept": "application/json,text/plain;q=0.9,*/*;q=0.8"})
+        r = safe_get(api_url, headers=mox_headers)
         if not r:
             print(f"Moxfield: no response from {api_url}")
             continue
@@ -166,7 +182,7 @@ def resolve_moxfield(url: str):
                 print(f"Moxfield: parsed {len(parsed)} cards from plain text")
                 return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in parsed))
     print("Moxfield: trying HTML scraping")
-    html_found = moxfield_from_html(url)
+    html_found = moxfield_from_html(url, headers=mox_headers)
     if html_found:
         print(f"Moxfield: extracted {len(html_found)} cards from HTML")
         return ("moxfield", "\n".join(f'{e["quantity"]} {e["name"]}' for e in html_found))

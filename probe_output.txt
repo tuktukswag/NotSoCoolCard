@@ -1,0 +1,57 @@
+https://api.moxfield.com/v2/decks/all/p8hyvAd7JUWmljhQLgA1WQ 403 text/html; charset=UTF-8
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta
+https://api.moxfield.com/v2/decks/all/p8hyvAd7JUWmljhQLgA1WQ/export 403 text/html; charset=UTF-8
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta
+https://api2.moxfield.com/v2/decks/all/p8hyvAd7JUWmljhQLgA1WQ 403 text/html; charset=UTF-8
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta
+https://api2.moxfield.com/v2/decks/all/p8hyvAd7JUWmljhQLgA1WQ/export 403 text/html; charset=UTF-8
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta
+https://moxfield.com/decks/p8hyvAd7JUWmljhQLgA1WQ 403 text/html; charset=UTF-8
+<!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-js ie8 oldie" lang="en-US"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en-US"> <!--<![endif]-->
+<head>
+<title>Attention Required! | Cloudflare</title>
+<meta charset="UTF-8" />
+<meta
+archidekt
+https://archidekt.com/api/decks/21464334/ 200 application/json
+{"id":21464334,"name":"ICP","createdAt":"2026-04-06T12:19:16.305851Z","updatedAt":"2026-04-07T09:12:03.526598Z","deckFormat":3,"edhBracket":2,"game":1,"description":"","viewCount":46,"featured":"https://storage.googleapis.com/archidekt-card-images/sos/71a6701f-40f1-43ef-bff5-a5907fd67cd6_art_crop.jpg","customFeatured":"","private":false,"unlisted":false,"theorycrafted":false,"points":0,"userInput"
+https://archidekt.com/api/decks/21464334/small/ 200 application/json
+{"id":21464334,"name":"ICP","createdAt":"2026-04-06T12:19:16.305851Z","updatedAt":"2026-04-07T09:12:03.526598Z","deckFormat":3,"edhBracket":2,"game":1,"description":"","viewCount":47,"featured":"https://storage.googleapis.com/archidekt-card-images/sos/71a6701f-40f1-43ef-bff5-a5907fd67cd6_art_crop.jpg","customFeatured":"","private":false,"unlisted":false,"theorycrafted":false,"points":0,"userInput"
+https://archidekt.com/decks/21464334/icp 200 text/html; charset=utf-8
+<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/><meta name="viewport" content="minimum-scale=1, initial-scale=1, width=device-width, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"/><link rel="manifest" href="/manifest.json" crossorigin="use-credentials"/><link rel="apple-touch-icon" href="/apple-icon.png"/><meta name="theme-color" content="#fa890d"/><meta name="application-nam
