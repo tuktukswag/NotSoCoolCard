@@ -6,6 +6,12 @@ let currentPage = 1;
 let currentFilteredSorted = [];
 let USD_SEK_RATE = null;
 
+const ALWAYS_IGNORED_BASIC_LANDS = new Set([
+  "plains", "island", "swamp", "mountain", "forest", "wastes",
+  "snow covered plains", "snow covered island", "snow covered swamp",
+  "snow covered mountain", "snow covered forest"
+]);
+
 const el = {
   searchTabBtn: document.getElementById("searchTabBtn"),
   deckCheckTabBtn: document.getElementById("deckCheckTabBtn"),
@@ -54,6 +60,7 @@ function usdPrice(card){ const usd=card?.price?.usd; if(usd===null||usd===undefi
 function sekPrice(card){ const usd=usdPrice(card); if(usd===null||USD_SEK_RATE===null) return null; const v=usd*USD_SEK_RATE; return Number.isFinite(v)?v:null; }
 function formatSek(value){ if(value===null||value===undefined) return "—"; return new Intl.NumberFormat("sv-SE",{minimumFractionDigits:2, maximumFractionDigits:2}).format(value); }
 function buildCardLookup(cards){ const map=new Map(); for(const card of cards){ const key=normalizeText(card.name); if(key && !map.has(key)) map.set(key, card);} return map; }
+function isAlwaysIgnoredBasicLandName(name){ return ALWAYS_IGNORED_BASIC_LANDS.has(normalizeText(name)); }
 
 function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); return c; }
 function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.length) return true; const cardColors=Array.isArray(card.color_identity)&&card.color_identity.length?card.color_identity:(card.color&&card.color!=="COLORLESS"?card.color.split(""):[]); return cardColors.every(color=>commanderColors.includes(color)); }
@@ -175,12 +182,45 @@ function parseDecklist(text){
 function renderDeckCheckResults(result){
   const container=document.createElement("div"); container.className="deck-check-report";
   const summary=document.createElement("div"); summary.className="deck-summary";
-  summary.innerHTML=`<div>Total cards: <strong>${result.totalCards}</strong></div><div>Matched cards: <strong>${result.matchedCount}</strong></div><div>Missing cards: <strong>${result.missing.length}</strong></div><div>Offenders above threshold: <strong>${result.offenders.length}</strong></div>`;
+  summary.innerHTML=`<div>Total cards: <strong>${result.totalCards}</strong></div><div>Checked cards: <strong>${result.checkedCount}</strong></div><div>Ignored cards: <strong>${result.ignoredCount}</strong></div><div>Offenders: <strong>${result.offenders.length}</strong></div>`;
   container.appendChild(summary);
-  if(result.blocked){ const blocked=document.createElement("div"); blocked.className="warning-box"; blocked.textContent=result.message; container.appendChild(blocked); return container; }
-  if(!result.offenders.length && !result.missing.length){ const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below ${result.threshold}% inclusion.`; container.appendChild(ok); }
-  if(result.offenders.length){ const section=document.createElement("section"); section.innerHTML="<h3>Cards above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const offender of result.offenders){ const li=document.createElement("li"); li.textContent=`${offender.quantity} ${offender.name} — ${offender.include_pct}%`; list.appendChild(li);} section.appendChild(list); container.appendChild(section);}
-  if(result.missing.length){ const section=document.createElement("section"); section.innerHTML="<h3>Cards not found in your data</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const missing of result.missing){ const li=document.createElement("li"); li.textContent=`${missing.quantity} ${missing.name}`; list.appendChild(li);} section.appendChild(list); container.appendChild(section);}
+
+  if(result.blocked){
+    const blocked=document.createElement("div"); blocked.className="warning-box"; blocked.textContent=result.message; container.appendChild(blocked); return container;
+  }
+
+  if(!result.offenders.length){
+    const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below ${result.threshold}% inclusion.`; container.appendChild(ok);
+  }
+
+  if(result.offenders.length){
+    const section=document.createElement("section");
+    section.innerHTML="<h3>Cards failing the threshold</h3>";
+    const list=document.createElement("ul"); list.className="report-list";
+    for(const offender of result.offenders){
+      const li=document.createElement("li");
+      li.textContent = offender.assumed
+        ? `${offender.quantity} ${offender.name} — assumed above ${result.threshold}% because it is not in the current dataset`
+        : `${offender.quantity} ${offender.name} — ${offender.include_pct}%`;
+      list.appendChild(li);
+    }
+    section.appendChild(list);
+    container.appendChild(section);
+  }
+
+  if(result.ignored.length){
+    const section=document.createElement("section");
+    section.innerHTML="<h3>Ignored cards</h3>";
+    const list=document.createElement("ul"); list.className="report-list";
+    for(const ignored of result.ignored){
+      const li=document.createElement("li");
+      li.textContent=`${ignored.quantity} ${ignored.name} — ${ignored.reason}`;
+      list.appendChild(li);
+    }
+    section.appendChild(list);
+    container.appendChild(section);
+  }
+
   return container;
 }
 
@@ -189,18 +229,48 @@ function checkDeck(){
   if(!entries.length){ el.deckInfoBox.textContent="No valid decklist lines found."; return; }
   el.deckInfoBox.textContent=`Deck contains ${totalCards} cards.`;
   const threshold=Number(el.deckIncludeFilter.value||2); const excludeLands=el.excludeLandsCheckbox.checked;
-  if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,matchedCount:0,missing:[],offenders:[],threshold})); return; }
-  const offenders=[]; const missing=[]; let matchedCount=0;
-  for(const entry of entries){
-    const card=CARD_LOOKUP.get(entry.normalized);
-    if(!card){ missing.push(entry); continue; }
-    matchedCount += 1;
-    const isLand=normalizeText(card.card_type).includes("land");
-    if(excludeLands && isLand) continue;
-    const includePct=Number(card.include_pct ?? Infinity);
-    if(!(includePct<=threshold)) offenders.push({quantity:entry.quantity, name:card.name, include_pct:includePct});
+  if(totalCards>100){
+    el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,checkedCount:0,ignoredCount:0,offenders:[],ignored:[],threshold}));
+    return;
   }
-  el.deckResults.appendChild(renderDeckCheckResults({blocked:false,totalCards,matchedCount,missing,offenders,threshold}));
+
+  const offenders=[]; const ignored=[]; let checkedCount=0;
+
+  for(const entry of entries){
+    if(isAlwaysIgnoredBasicLandName(entry.name)){
+      ignored.push({quantity: entry.quantity, name: entry.name, reason: "basic land"});
+      continue;
+    }
+
+    const card=CARD_LOOKUP.get(entry.normalized);
+
+    if(!card){
+      offenders.push({quantity: entry.quantity, name: entry.name, assumed: true});
+      checkedCount += 1;
+      continue;
+    }
+
+    const isLand=normalizeText(card.card_type).includes("land");
+    if(excludeLands && isLand){
+      ignored.push({quantity: entry.quantity, name: card.name, reason: "land excluded"});
+      continue;
+    }
+
+    checkedCount += 1;
+
+    const includePct=Number(card.include_pct ?? Infinity);
+    if(!(includePct<=threshold)) offenders.push({quantity:entry.quantity, name:card.name, include_pct:includePct, assumed:false});
+  }
+
+  el.deckResults.appendChild(renderDeckCheckResults({
+    blocked:false,
+    totalCards,
+    checkedCount,
+    ignoredCount: ignored.length,
+    offenders,
+    ignored,
+    threshold
+  }));
 }
 
 async function fetchDecklistFromUrl(){
