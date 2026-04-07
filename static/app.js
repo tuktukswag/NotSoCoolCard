@@ -82,7 +82,7 @@ function cardMatches(card){
   if(el.price.value !== "" && !(sek !== null && sek <= Number(el.price.value))) return false;
   if(!manaPassesFilter(card.cmc)) return false;
   if(!typePassesFilter(card.card_type)) return false;
-  if(el.limitCommander.checked && !cardFitsCommanderIdentity(card, commanderColors)) return false;
+  if(commanderColors.length && !cardFitsCommanderIdentity(card, commanderColors)) return false;
   return true;
 }
 
@@ -179,7 +179,7 @@ function applyFilters(reset=false){
   currentFilteredSorted = sortCards(ALL_CARDS.filter(cardMatches));
   renderCards(currentFilteredSorted);
   const commanderColors=getCommanderIdentity();
-  const commanderText=el.limitCommander.checked ? ` • commander identity ${commanderColors.length ? commanderColors.join("") : "none selected"}` : "";
+  const commanderText=commanderColors.length ? ` • commander identity ${commanderColors.join("")}` : "";
   el.summary.textContent = `${currentFilteredSorted.length} / ${ALL_CARDS.length} cards shown${commanderText}`;
 }
 
