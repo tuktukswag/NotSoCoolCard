@@ -173,14 +173,36 @@ function parseDecklist(text){
   return entries;
 }
 
+function normalizeCardType(card){
+  const raw = card.card_type || card.type || card.types || "";
+  if(Array.isArray(raw)) return raw.join(" ");
+  return String(raw || "");
+}
+
+function cardIsLand(card){
+  return normalizeText(normalizeCardType(card)).includes("land");
+}
+
+function cardIsBasicLand(card){
+  const raw = card.supertypes || card.supertype || card.super_types || "";
+  if(Array.isArray(raw)) return raw.some(v=>normalizeText(v).includes("basic"));
+  return normalizeText(String(raw)).includes("basic");
+}
+
+function parseIncludePct(card){
+  const raw = card.include_pct;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : Infinity;
+}
+
 function renderDeckCheckResults(result){
   const c = document.createElement("div"); c.className="deck-check-report";
   const s = document.createElement("div"); s.className="deck-summary";
-  s.innerHTML = `<div>Lands: <strong>${result.landsCount}</strong></div><div>Cards above threshold: <strong>${result.aboveThreshold.length}</strong></div>`;
+  s.innerHTML = `<div>Lands: <strong>${result.landsCount}</strong></div><div>Cards above threshold: <strong>${result.aboveThreshold.length}</strong></div><div>Cards under threshold: <strong>${result.underThreshold.length}</strong></div>`;
   c.appendChild(s);
   if(result.blocked){ const w=document.createElement("div"); w.className="warning-box"; w.textContent=result.message; c.appendChild(w); return c; }
   if(!result.aboveThreshold.length){ const ok=document.createElement("div"); ok.className="success-box"; ok.textContent=`Deck passed. All checked cards are at or below the threshold.`; c.appendChild(ok); }
-  if(result.aboveThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.aboveThreshold){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name} — assumed (not in dataset)` : `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
+  if(result.aboveThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Above threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.aboveThreshold){ const li=document.createElement("li"); li.textContent = o.assumed ? `${o.quantity} ${o.name}` : `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   if(result.underThreshold.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Under threshold</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const o of result.underThreshold){ const li=document.createElement("li"); li.textContent = `${o.quantity} ${o.name} — ${o.include_pct}%`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   if(result.excludedLands.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Excluded lands</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const l of result.excludedLands){ const li=document.createElement("li"); li.textContent = `${l.quantity} ${l.name}`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
   if(result.basicLands.length){ const sec=document.createElement("section"); sec.innerHTML="<h3>Basic Lands</h3>"; const list=document.createElement("ul"); list.className="report-list"; for(const l of result.basicLands){ const li=document.createElement("li"); li.textContent = `${l.quantity} ${l.name}`; list.appendChild(li);} sec.appendChild(list); c.appendChild(sec); }
@@ -195,20 +217,21 @@ function checkDeck(){
   if(totalCards>100){ el.deckResults.appendChild(renderDeckCheckResults({blocked:true,message:`Deck has ${totalCards} cards. The checker will not run for decklists above 100 cards.`,totalCards,landsCount:0,aboveThreshold:[],underThreshold:[],excludedLands:[],basicLands:[]})); return; }
   const aboveThreshold=[], underThreshold=[], excludedLands=[], basicLands=[]; let landsCount=0;
   for(const entry of entries){
-    const card=CARD_LOOKUP.get(normalizeText(entry.name));
+    const card = CARD_LOOKUP.get(normalizeText(entry.name));
     if(!card){ aboveThreshold.push({quantity:entry.quantity,name:entry.name,assumed:true}); continue; }
-    const isLand=normalizeText(card.card_type).includes("land");
+    const isLand = cardIsLand(card);
+    const isBasicLand = cardIsBasicLand(card);
     if(isLand){
       landsCount += entry.quantity;
-      if(card.supertypes && card.supertypes.includes("Basic")){
+      if(isBasicLand){
         basicLands.push({quantity:entry.quantity,name:card.name});
       }
       if(excludeLands){
-        if(!(card.supertypes && card.supertypes.includes("Basic"))){ excludedLands.push({quantity:entry.quantity,name:card.name}); }
-        continue; // Skip checking lands if excluded
+        excludedLands.push({quantity:entry.quantity,name:card.name});
+        continue; // Skip checking all lands if excluded
       }
     }
-    const includePct = Number(card.include_pct ?? Infinity);
+    const includePct = parseIncludePct(card);
     const entryData = {quantity: entry.quantity, name: card.name, include_pct: includePct};
     if(includePct <= threshold) underThreshold.push(entryData);
     else aboveThreshold.push(entryData);
