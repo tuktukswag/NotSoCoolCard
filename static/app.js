@@ -19,7 +19,6 @@ const el = {
   searchTab: document.getElementById("searchTab"),
   deckCheckTab: document.getElementById("deckCheckTab"),
   name: document.getElementById("nameFilter"),
-  color: document.getElementById("colorFilter"),
   include: document.getElementById("includeFilter"),
   price: document.getElementById("priceFilter"),
   tag: document.getElementById("tagFilter"),
@@ -65,7 +64,8 @@ function sekPrice(card){ const usd = usdPrice(card); return usd !== null && USD_
 function formatSek(v){ return v === null ? "—" : new Intl.NumberFormat("sv-SE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function buildCardLookup(cards){ const m = new Map(); for(const c of cards){ const k = normalizeText(c.name); if(k && !m.has(k)) m.set(k,c);} return m; }
 
-function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); return c; }
+function getExactColorFilter(){ const selected = document.querySelector('input[name="exactColor"]:checked'); return selected ? selected.value : ""; }
+function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); if(document.getElementById("commanderC")?.checked) c.push("C"); return c; }
 function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.length) return true; const cc = Array.isArray(card.color_identity)&&card.color_identity.length ? card.color_identity : (card.color&&card.color!=="COLORLESS" ? card.color.split("") : []); return cc.every(x=>commanderColors.includes(x)); }
 function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
 function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.some(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
@@ -74,8 +74,9 @@ function typePassesFilter(type){ const txt = normalizeText(type); const include 
 function cardMatches(card){
   const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).join(" | ").toLowerCase();
   const includePct = Number(card.include_pct ?? Infinity), sek = sekPrice(card), commanderColors = getCommanderIdentity();
+  const exactColor = getExactColorFilter();
   if(normalizeText(el.name.value) && !name.includes(normalizeText(el.name.value))) return false;
-  if(el.color.value.trim() && color !== el.color.value.trim()) return false;
+  if(exactColor && color !== exactColor) return false;
   if(normalizeText(el.tag.value) && !tags.includes(normalizeText(el.tag.value))) return false;
   if(el.include.value !== "" && !(includePct <= Number(el.include.value))) return false;
   if(el.price.value !== "" && !(sek !== null && sek <= Number(el.price.value))) return false;
@@ -321,10 +322,14 @@ async function init(){
   applyFilters(true);
 }
 
-for(const control of [el.name,el.color,el.include,el.price,el.tag,el.typeInclude,el.typeExclude,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.limitCommander,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG]){
+for(const control of [el.name,el.include,el.price,el.tag,el.typeInclude,el.typeExclude,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.limitCommander,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
+  if(!control) continue;
   control.addEventListener("input",()=>applyFilters(true));
   control.addEventListener("change",()=>applyFilters(true));
 }
+document.querySelectorAll('input[name="exactColor"]').forEach(radio=>{
+  radio.addEventListener("change",()=>applyFilters(true));
+});
 el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
 updateDeckThresholdLabel();
 el.nextPageBtn.addEventListener("click",nextPage); el.nextPageBtnBottom.addEventListener("click",nextPage);

@@ -10,8 +10,23 @@ body { margin: 0; font-family: Arial, sans-serif; background: #0f1115; color: #f
 .filters { padding: 16px 24px; border-bottom: 1px solid #2a2f3a; background: #11151d; }
 .filter-grid, .deck-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: start; }
 .full-width { grid-column: 1 / -1; }
-.filter-grid label, .deck-grid label { min-height: 78px; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.exact-color-fieldset, .commander-fieldset { padding: 14px; border-radius: 16px; border: 1px solid #303746; }
+.color-choices, .color-checks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.color-option, .mini-check { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid #303746; background: #0d1016; cursor: pointer; }
+.color-option input, .mini-check input { margin: 0; width: auto; }
+.color-option input[type="radio"], .mini-check input[type="checkbox"] { width: 16px; height: 16px; }
+.color-label { font-size: 13px; color: #d6deeb; }
+.pip { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; border: 1px solid #394155; background: transparent; }
+.pip-any { background: linear-gradient(135deg, #f1f3f5 20%, #737c8d 80%); }
+.pip-w { background: #fff9d6; }
+.pip-u { background: #b0d7ff; }
+.pip-b { background: #7c7f9f; }
+.pip-r { background: #f09a7a; }
+.pip-g { background: #8ac87b; }
+.pip-c { background: #cfcfcf; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
 .threshold-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 16px; }
 @media (max-width: 760px) { .threshold-columns { grid-template-columns: 1fr; } }
 input, select, button, textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #303746; background: #0d1016; color: #f1f3f5; }
