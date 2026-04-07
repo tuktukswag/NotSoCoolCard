@@ -11,7 +11,7 @@ body { margin: 0; font-family: Arial, sans-serif; background: #0f1115; color: #f
 .filter-grid, .deck-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: start; }
 .full-width { grid-column: 1 / -1; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-.exact-color-fieldset, .commander-fieldset { padding: 14px; border-radius: 16px; border: 1px solid #303746; grid-column: 1 / -1; }
+.exact-color-fieldset, .commander-fieldset { padding: 14px; border-radius: 16px; border: 1px solid #303746; width: fit-content; }
 .color-choices, .color-checks { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .color-option, .mini-check { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid #303746; background: #0d1016; cursor: pointer; }
 .color-option input, .mini-check input { margin: 0; width: auto; }

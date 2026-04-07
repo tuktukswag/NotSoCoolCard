@@ -327,13 +327,21 @@ async function init(){
   applyFilters(true);
 }
 
-for(const control of [el.name,el.include,el.price,el.tag,el.typeInclude,el.typeExclude,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.limitCommander,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
+let filterTimeout;
+const debouncedFilter = () => { clearTimeout(filterTimeout); filterTimeout = setTimeout(()=>applyFilters(true), 300); };
+const immediateFilter = () => applyFilters(true);
+// Text inputs use debouncing to reduce excessive filtering
+for(const control of [el.name,el.tag,el.typeInclude,el.typeExclude]){
   if(!control) continue;
-  control.addEventListener("input",()=>applyFilters(true));
-  control.addEventListener("change",()=>applyFilters(true));
+  control.addEventListener("input", debouncedFilter);
 }
-document.querySelectorAll('input[name="exactColor"]').forEach(radio=>{
-  radio.addEventListener("change",()=>applyFilters(true));
+// Numbers and selects filter immediately on change
+for(const control of [el.include,el.price,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
+  if(!control) continue;
+  control.addEventListener("change", immediateFilter);
+}
+document.querySelectorAll('input[name="exactColor"]').forEach(checkbox=>{
+  checkbox.addEventListener("change", immediateFilter);
 });
 el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
 updateDeckThresholdLabel();
