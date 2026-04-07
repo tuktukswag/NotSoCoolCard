@@ -1,14 +1,30 @@
+"""
+
+Script to update card prices and forex rates from Scryfall API and ECB.
+
+Fetches prices for all cards in cards.json and saves to prices.json.
+
+"""
+
 from __future__ import annotations
 import json, os, time, xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
 
+# Base directory of the script
 BASE_DIR = Path(__file__).resolve().parent
+
+# Path to the cards JSON file, configurable via environment variable
 CARDS_FILE = Path(os.environ.get("CARDSITE_JSON", BASE_DIR / "cards.json"))
+
+# Path to the prices JSON file, configurable via environment variable
 PRICES_FILE = Path(os.environ.get("CARDSITE_PRICES_JSON", BASE_DIR / "prices.json"))
+
+# Sleep time between Scryfall API requests to avoid rate limiting
 SCRYFALL_SLEEP = float(os.environ.get("SCRYFALL_SLEEP", "0.12"))
 
+# Safe HTTP GET request with retries and rate limit handling
 def safe_get(url: str, params=None, headers=None, timeout: int = 30, retries: int = 4):
     for attempt in range(retries):
         try:
@@ -22,6 +38,7 @@ def safe_get(url: str, params=None, headers=None, timeout: int = 30, retries: in
             time.sleep(1.5 * (attempt + 1))
     return None
 
+# Load cards data from JSON file
 def load_cards():
     if not CARDS_FILE.exists():
         raise FileNotFoundError(f"Missing JSON file: {CARDS_FILE}")
@@ -31,12 +48,14 @@ def load_cards():
     if isinstance(data, list): return data
     raise ValueError("Unexpected JSON structure in cards file")
 
+# Generate a unique key for a card based on set and collector number, or oracle ID as fallback
 def card_key(card: dict) -> str:
     set_code = str(card.get("set") or "").lower()
     collector_number = str(card.get("collector_number") or "").lower()
     if set_code and collector_number: return f"{set_code}:{collector_number}"
     return str(card.get("oracle_id") or "")
 
+# Fetch prices for a single card from Scryfall API
 def fetch_card_prices(card: dict):
     set_code = card.get("set")
     collector_number = card.get("collector_number")
@@ -56,6 +75,7 @@ def fetch_card_prices(card: dict):
         "tix": prices.get("tix"),
     }
 
+# Fetch USD to SEK exchange rate from ECB
 def fetch_usd_sek_rate():
     # ECB daily reference rates XML: base EUR, includes USD and SEK.
     url = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
@@ -74,6 +94,7 @@ def fetch_usd_sek_rate():
         return sek_rate / usd_rate
     return None
 
+# Main function to update prices for all cards
 def main():
     cards = load_cards()
     print(f"Loaded {len(cards)} cards from {CARDS_FILE.name}")
@@ -104,5 +125,6 @@ def main():
         json.dump(payload, f, ensure_ascii=False, indent=2)
     print(f"Done. Updated {updated} cards, skipped {skipped}. Wrote {PRICES_FILE.name}")
 
+# Entry point to run the price update script
 if __name__ == "__main__":
     main()

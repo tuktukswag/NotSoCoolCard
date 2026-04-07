@@ -1,3 +1,9 @@
+/**
+ * NotSoCoolCard - Frontend JavaScript for card search and deck validation.
+ *
+ * Handles UI interactions, filtering, sorting, and deck checking.
+ */
+
 let ALL_CARDS = [];
 let CARD_LOOKUP = new Map();
 let SYMBOLOGY = {};
@@ -6,6 +12,7 @@ let currentPage = 1;
 let currentFilteredSorted = [];
 let USD_SEK_RATE = null;
 
+// DOM element references for easy access
 const el = {
   searchTabBtn: document.getElementById("searchTabBtn"),
   deckCheckTabBtn: document.getElementById("deckCheckTabBtn"),
@@ -47,6 +54,7 @@ const el = {
   deckResults: document.getElementById("deckResults"),
 };
 
+// Utility functions
 function asArray(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
 function normalizeText(v){ return String(v || "").toLowerCase().replace(/[^\w\s']/g," ").replace(/\s+/g," ").trim(); }
 function parseCommaTerms(v){ return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean); }
@@ -60,6 +68,7 @@ function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.l
 function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
 function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.some(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
 
+// Check if a card matches the current filter criteria
 function cardMatches(card){
   const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).join(" | ").toLowerCase();
   const includePct = Number(card.include_pct ?? Infinity), sek = sekPrice(card), commanderColors = getCommanderIdentity();
@@ -74,6 +83,7 @@ function cardMatches(card){
   return true;
 }
 
+// Sort cards based on selected sorting criteria
 function sortCards(cards){
   const mode = el.sort.value;
   return [...cards].sort((a,b)=>{
