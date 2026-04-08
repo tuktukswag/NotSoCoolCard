@@ -93,9 +93,6 @@ def load_fx():
     row = cursor.fetchone()
     conn.close()
     return float(row[0]) if row else None
-        data.setdefault("meta", {}); data.setdefault("prices", {}); data.setdefault("fx", {})
-        return data
-    return {"meta": {}, "prices": {}, "fx": {}}
 
 # Generate a unique key for a card based on set and collector number, or oracle ID as fallback
 def card_key(card):
