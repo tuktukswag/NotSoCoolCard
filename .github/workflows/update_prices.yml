@@ -2,8 +2,9 @@ name: Update prices.json
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * *"
+  push:
+    paths:
+      - 'cards.json'
 
 permissions:
   contents: write
