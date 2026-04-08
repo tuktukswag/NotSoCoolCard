@@ -7,7 +7,7 @@ Fetches prices for all cards in cards.json and saves to prices.json.
 """
 
 from __future__ import annotations
-import json, os, time, xml.etree.ElementTree as ET
+import json, os, time, sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
@@ -15,40 +15,17 @@ import requests
 # Base directory of the script
 BASE_DIR = Path(__file__).resolve().parent
 
-# Path to the cards JSON file, configurable via environment variable
-CARDS_FILE = Path(os.environ.get("CARDSITE_JSON", BASE_DIR / "cards.json"))
-
-# Path to the prices JSON file, configurable via environment variable
-PRICES_FILE = Path(os.environ.get("CARDSITE_PRICES_JSON", BASE_DIR / "prices.json"))
+# Path to the SQLite database file
+DB_FILE = Path(os.environ.get("CARDSITE_DB", BASE_DIR / "cards.db"))
 
 # Sleep time between Scryfall API requests to avoid rate limiting
 SCRYFALL_SLEEP = float(os.environ.get("SCRYFALL_SLEEP", "0.12"))
 
+# Generate a unique key for a card based on oracle ID
+def card_key(card):
+    return str(card.get("oracle_id") or "")
+
 # Safe HTTP GET request with retries and rate limit handling
-def safe_get(url: str, params=None, headers=None, timeout: int = 30, retries: int = 4):
-    for attempt in range(retries):
-        try:
-            r = requests.get(url, params=params, headers=headers, timeout=timeout)
-            if r.status_code == 404: return None
-            if r.status_code == 429:
-                time.sleep((attempt + 1) * 2); continue
-            r.raise_for_status(); return r
-        except requests.exceptions.RequestException:
-            if attempt == retries - 1: return None
-            time.sleep(1.5 * (attempt + 1))
-    return None
-
-# Load cards data from JSON file
-def load_cards():
-    if not CARDS_FILE.exists():
-        raise FileNotFoundError(f"Missing JSON file: {CARDS_FILE}")
-    with open(CARDS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, dict) and "cards" in data: return data["cards"]
-    if isinstance(data, list): return data
-    raise ValueError("Unexpected JSON structure in cards file")
-
-# Generate a unique key for a card based on set and collector number, or oracle ID as fallback
 def card_key(card: dict) -> str:
     set_code = str(card.get("set") or "").lower()
     collector_number = str(card.get("collector_number") or "").lower()
@@ -115,14 +92,17 @@ def fetch_usd_sek_rate():
 
 # Main function to update prices for all cards
 def main():
-    cards = load_cards()
-    print(f"Loaded {len(cards)} cards from {CARDS_FILE.name}")
-
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Load cards from DB
+    cursor.execute('SELECT oracle_id, name FROM cards')
+    cards = [{'oracle_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+    
     usd_sek = fetch_usd_sek_rate()
     if usd_sek is None:
         raise RuntimeError("Could not fetch USD/SEK exchange rate")
 
-    prices = {}
     updated = 0
     skipped = 0
 
@@ -130,19 +110,33 @@ def main():
         card_prices = fetch_card_prices(card)
         if not card_prices:
             skipped += 1; continue
-        prices[card_key(card)] = card_prices
+        key = card_key(card)
+        cursor.execute('''
+        INSERT OR REPLACE INTO prices (key, usd, usd_foil, usd_etched, eur, eur_foil, eur_etched, tix)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            key,
+            card_prices.get("usd"),
+            card_prices.get("usd_foil"),
+            card_prices.get("usd_etched"),
+            card_prices.get("eur"),
+            card_prices.get("eur_foil"),
+            card_prices.get("eur_etched"),
+            card_prices.get("tix")
+        ))
         updated += 1
         if idx % 100 == 0: print(f"Processed {idx}/{len(cards)} cards...")
         time.sleep(SCRYFALL_SLEEP)
 
-    payload = {
-        "meta": {"updated_at": datetime.now(timezone.utc).isoformat(), "card_count": len(prices)},
-        "fx": {"usd_sek": usd_sek, "updated_at": datetime.now(timezone.utc).isoformat()},
-        "prices": prices
-    }
-    with open(PRICES_FILE, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"Done. Updated {updated} cards, skipped {skipped}. Wrote {PRICES_FILE.name}")
+    # Update meta
+    cursor.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ('usd_sek', str(usd_sek)))
+    cursor.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ('updated_at', datetime.now(timezone.utc).isoformat()))
+    cursor.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ('card_count', str(len(cards))))
+    
+    conn.commit()
+    conn.close()
+    
+    print(f"Done. Updated {updated} cards, skipped {skipped}. Updated DB")
 
 # Entry point to run the price update script
 if __name__ == "__main__":

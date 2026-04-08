@@ -7,7 +7,7 @@ This Flask app serves a frontend for card search and deck checking, using data f
 """
 
 from __future__ import annotations
-import json, logging, os, re
+import json, logging, os, re, sqlite3
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -18,11 +18,8 @@ from flask import Flask, jsonify, render_template, request
 # Base directory of the application
 BASE_DIR = Path(__file__).resolve().parent
 
-# Path to the cards JSON file, configurable via environment variable
-CARDS_FILE = Path(os.environ.get("CARDSITE_JSON", BASE_DIR / "cards.json"))
-
-# Path to the prices JSON file, configurable via environment variable
-PRICES_FILE = Path(os.environ.get("CARDSITE_PRICES_JSON", BASE_DIR / "prices.json"))
+# Path to the SQLite database file
+DB_FILE = Path(os.environ.get("CARDSITE_DB", BASE_DIR / "cards.db"))
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -34,20 +31,68 @@ def load_json_file(path: Path, default):
     if not path.exists(): return default
     with open(path, "r", encoding="utf-8") as f: return json.load(f)
 
-# Load and validate the cards data from JSON file
-def load_cards_payload():
-    if not CARDS_FILE.exists(): return {"meta": {"error": f"Missing JSON file: {CARDS_FILE.name}"}, "cards": []}
-    data = load_json_file(CARDS_FILE, {"meta": {}, "cards": []})
-    if isinstance(data, list): return {"meta": {}, "cards": data}
-    if isinstance(data, dict) and "cards" in data:
-        data.setdefault("meta", {})
-        return data
-    return {"meta": {}, "cards": []}
+# Get DB connection
+def get_db():
+    return sqlite3.connect(DB_FILE)
 
-# Load and validate the prices data from JSON file
-def load_prices_payload():
-    data = load_json_file(PRICES_FILE, {"meta": {}, "prices": {}, "fx": {}})
-    if isinstance(data, dict):
+# Load cards from DB
+@lru_cache(maxsize=1)
+def load_cards():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM cards')
+    rows = cursor.fetchall()
+    conn.close()
+    cards = []
+    for row in rows:
+        card = {
+            'id': row[0],
+            'oracle_id': row[1],
+            'name': row[2],
+            'card_type': row[3],
+            'mana_cost': row[4],
+            'cmc': row[5],
+            'color': row[6],
+            'color_identity': json.loads(row[7]) if row[7] else [],
+            'include_pct': row[8],
+            'tags': json.loads(row[9]) if row[9] else [],
+            'keywords': json.loads(row[10]) if row[10] else [],
+            'image_url': row[11],
+            'back_image_url': row[12]
+        }
+        cards.append(card)
+    return cards
+
+# Load prices from DB
+@lru_cache(maxsize=1)
+def load_prices():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM prices')
+    rows = cursor.fetchall()
+    conn.close()
+    prices = {}
+    for row in rows:
+        prices[row[0]] = {
+            'usd': row[1],
+            'usd_foil': row[2],
+            'usd_etched': row[3],
+            'eur': row[4],
+            'eur_foil': row[5],
+            'eur_etched': row[6],
+            'tix': row[7]
+        }
+    return prices
+
+# Load fx rate
+@lru_cache(maxsize=1)
+def load_fx():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM meta WHERE key = "usd_sek"')
+    row = cursor.fetchone()
+    conn.close()
+    return float(row[0]) if row else None
         data.setdefault("meta", {}); data.setdefault("prices", {}); data.setdefault("fx", {})
         return data
     return {"meta": {}, "prices": {}, "fx": {}}
@@ -61,15 +106,18 @@ def card_key(card):
 
 # Merge cards data with prices and forex rates
 def merged_payload():
-    cards_payload = load_cards_payload()
-    prices_payload = load_prices_payload()
-    prices_map = prices_payload.get("prices", {})
-    fx = prices_payload.get("fx", {})
+    cards = load_cards()
+    prices = load_prices()
+    fx_rate = load_fx()
     merged_cards = []
-    for card in cards_payload.get("cards", []):
-        merged = dict(card); merged["price"] = prices_map.get(card_key(card), {}); merged_cards.append(merged)
-    meta = dict(cards_payload.get("meta", {}))
-    meta["usd_sek_rate"] = fx.get("usd_sek")
+    for card in cards:
+        merged = dict(card)
+        key = f"{card.get('set', '').lower()}:{card.get('collector_number', '').lower()}"
+        if not key or key == ':':
+            key = card.get('oracle_id', '')
+        merged["price"] = prices.get(key, {})
+        merged_cards.append(merged)
+    meta = {"usd_sek_rate": fx_rate, "card_count": len(merged_cards)}
     return {"meta": meta, "cards": merged_cards}
 
 # Safe HTTP GET request with retries and rate limit handling
