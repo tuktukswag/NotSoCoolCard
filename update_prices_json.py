@@ -95,8 +95,31 @@ def main():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
+    # Ensure oracle_id column exists
+    try:
+        cursor.execute('ALTER TABLE cards ADD COLUMN oracle_id TEXT')
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    # Populate oracle_id if missing
+    cursor.execute('SELECT id, name FROM cards WHERE oracle_id IS NULL')
+    missing = cursor.fetchall()
+    if missing:
+        # Load from cards.json
+        cards_file = BASE_DIR / "cards.json"
+        if cards_file.exists():
+            with open(cards_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            name_to_oracle = {card['name']: card.get('oracle_id') for card in data['cards']}
+            for card_id, name in missing:
+                oracle_id = name_to_oracle.get(name)
+                if oracle_id:
+                    cursor.execute('UPDATE cards SET oracle_id = ? WHERE id = ?', (oracle_id, card_id))
+            conn.commit()
+    
     # Load cards from DB
-    cursor.execute('SELECT oracle_id, name FROM cards')
+    cursor.execute('SELECT oracle_id, name FROM cards WHERE oracle_id IS NOT NULL')
     cards = [{'oracle_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
     
     usd_sek = fetch_usd_sek_rate()
