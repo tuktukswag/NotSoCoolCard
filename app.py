@@ -33,34 +33,104 @@ def load_json_file(path: Path, default):
 
 # Get DB connection
 def get_db():
-    return sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # Load cards from DB
 @lru_cache(maxsize=1)
 def load_cards():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM cards')
+
+    cursor.execute("PRAGMA table_info(cards)")
+    table_info = cursor.fetchall()
+    available = {row["name"] for row in table_info}
+
+    wanted = [
+        "id",
+        "oracle_id",
+        "name",
+        "card_type",
+        "mana_cost",
+        "cmc",
+        "color",
+        "color_identity",
+        "include_pct",
+        "tags",
+        "keywords",
+        "image_url",
+        "back_image_url",
+        "edhrec_rank",
+        "edhrec_link",
+        "scryfall_link",
+        "set",
+        "collector_number",
+    ]
+
+    selected = []
+    aliases = {}
+
+    for col in wanted:
+        if col in available:
+            if col == "set":
+                selected.append('"set" AS set_code')
+                aliases["set"] = "set_code"
+            else:
+                selected.append(col)
+                aliases[col] = col
+
+    if not selected:
+        conn.close()
+        return []
+
+    query = f"SELECT {', '.join(selected)} FROM cards"
+    cursor.execute(query)
     rows = cursor.fetchall()
     conn.close()
+
+    def parse_json_field(value, default):
+        if value is None or value == "":
+            return default
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                return default
+        if isinstance(value, (list, dict)):
+            return value
+        return default
+
     cards = []
     for row in rows:
+        def get_value(name, default=None):
+            key = aliases.get(name)
+            if not key:
+                return default
+            return row[key] if key in row.keys() else default
+
         card = {
-            'id': row[0],
-            'oracle_id': row[1],
-            'name': row[2],
-            'card_type': row[3],
-            'mana_cost': row[4],
-            'cmc': row[5],
-            'color': row[6],
-            'color_identity': json.loads(row[7]) if row[7] else [],
-            'include_pct': row[8],
-            'tags': json.loads(row[9]) if row[9] else [],
-            'keywords': json.loads(row[10]) if row[10] else [],
-            'image_url': row[11],
-            'back_image_url': row[12]
+            "id": get_value("id"),
+            "oracle_id": get_value("oracle_id"),
+            "name": get_value("name"),
+            "card_type": get_value("card_type"),
+            "mana_cost": get_value("mana_cost"),
+            "cmc": get_value("cmc"),
+            "color": get_value("color"),
+            "color_identity": parse_json_field(get_value("color_identity"), []),
+            "include_pct": get_value("include_pct"),
+            "tags": parse_json_field(get_value("tags"), []),
+            "keywords": parse_json_field(get_value("keywords"), []),
+            "image_url": get_value("image_url"),
+            "back_image_url": get_value("back_image_url"),
+            "edhrec_rank": get_value("edhrec_rank"),
+            "edhrec_link": get_value("edhrec_link"),
+            "scryfall_link": get_value("scryfall_link"),
+            "set": get_value("set"),
+            "collector_number": get_value("collector_number"),
         }
         cards.append(card)
+
     return cards
 
 # Load prices from DB
@@ -93,15 +163,13 @@ def load_fx():
     row = cursor.fetchone()
     conn.close()
     return float(row[0]) if row else None
-        data.setdefault("meta", {}); data.setdefault("prices", {}); data.setdefault("fx", {})
-        return data
-    return {"meta": {}, "prices": {}, "fx": {}}
 
 # Generate a unique key for a card based on set and collector number, or oracle ID as fallback
 def card_key(card):
     set_code = str(card.get("set") or "").lower()
     collector_number = str(card.get("collector_number") or "").lower()
-    if set_code and collector_number: return f"{set_code}:{collector_number}"
+    if set_code and collector_number:
+        return f"{set_code}:{collector_number}"
     return str(card.get("oracle_id") or "")
 
 # Merge cards data with prices and forex rates
@@ -110,13 +178,15 @@ def merged_payload():
     prices = load_prices()
     fx_rate = load_fx()
     merged_cards = []
+
     for card in cards:
         merged = dict(card)
-        key = f"{card.get('set', '').lower()}:{card.get('collector_number', '').lower()}"
-        if not key or key == ':':
-            key = card.get('oracle_id', '')
+        key = f"{str(card.get('set') or '').lower()}:{str(card.get('collector_number') or '').lower()}"
+        if not key or key == ":":
+            key = str(card.get('oracle_id') or '')
         merged["price"] = prices.get(key, {})
         merged_cards.append(merged)
+
     meta = {"usd_sek_rate": fx_rate, "card_count": len(merged_cards)}
     return {"meta": meta, "cards": merged_cards}
 
@@ -340,7 +410,7 @@ def api_deck_resolve():
     if not resolved:
         print("api_deck_resolve: resolve_deck_url failed")
         error_msg = "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."
-        if "moxfield.com/decks/" in lowered:
+        if "moxfield.com/decks/" in url.lower():
             error_msg += " Moxfield may be blocking automated requests; try pasting the decklist manually."
         return jsonify({"ok": False, "error": error_msg}), 400
 
