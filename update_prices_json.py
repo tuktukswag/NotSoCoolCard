@@ -55,16 +55,35 @@ def card_key(card: dict) -> str:
     if set_code and collector_number: return f"{set_code}:{collector_number}"
     return str(card.get("oracle_id") or "")
 
-# Fetch prices for a single card from Scryfall API
+# Fetch prices for a single card from Scryfall API - returns cheapest printing
 def fetch_card_prices(card: dict):
-    set_code = card.get("set")
-    collector_number = card.get("collector_number")
-    if not set_code or not collector_number: return None
-    url = f"https://api.scryfall.com/cards/{set_code}/{collector_number}"
-    r = safe_get(url, headers={"Accept": "application/json"})
+    oracle_id = card.get("oracle_id")
+    if not oracle_id: return None
+    url = "https://api.scryfall.com/cards/search"
+    params = {"q": f"oracle_id:{oracle_id}", "order": "released"}
+    r = safe_get(url, params=params, headers={"Accept": "application/json"})
     if not r: return None
     data = r.json()
-    prices = data.get("prices") or {}
+    cards_list = data.get("data", [])
+    if not cards_list: return None
+    
+    # Find the cheapest printing by USD price
+    cheapest = None
+    cheapest_price = float('inf')
+    for printing in cards_list:
+        prices = printing.get("prices") or {}
+        usd_price = prices.get("usd")
+        if usd_price:
+            try:
+                usd_val = float(usd_price)
+                if usd_val < cheapest_price:
+                    cheapest_price = usd_val
+                    cheapest = printing
+            except (ValueError, TypeError):
+                pass
+    
+    if not cheapest: return None
+    prices = cheapest.get("prices") or {}
     return {
         "usd": prices.get("usd"),
         "usd_foil": prices.get("usd_foil"),
