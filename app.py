@@ -50,10 +50,10 @@ def load_cards():
             'mana_cost': row[4],
             'cmc': row[5],
             'color': row[6],
-            'color_identity': json.loads(row[7]) if isinstance(row[7], str) else (row[7] or []),
+            'color_identity': json.loads(row[7]) if (isinstance(row[7], str) and row[7].strip()) else (row[7] or []),
             'include_pct': row[8],
-            'tags': json.loads(row[9]) if isinstance(row[9], str) else (row[9] or []),
-            'keywords': json.loads(row[10]) if isinstance(row[10], str) else (row[10] or []),
+            'tags': json.loads(row[9]) if (isinstance(row[9], str) and row[9].strip()) else (row[9] or []),
+            'keywords': json.loads(row[10]) if (isinstance(row[10], str) and row[10].strip()) else (row[10] or []),
             'image_url': row[11],
             'back_image_url': row[12]
         }
