@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from html import unescape
@@ -12,6 +13,11 @@ from html import unescape
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+# GitHub Actions and other CI environments set CI=true.
+# In CI we force tqdm to write newlines so each update appears as a log line.
+CI = os.environ.get("CI", "").lower() in ("true", "1", "yes")
+TQDM_KWARGS = dict(file=sys.stdout, dynamic_ncols=not CI, mininterval=5 if CI else 0.1)
 
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -92,7 +98,7 @@ def scryfall_search(query, max_cards):
         if pbar is None:
             total_cards = data.get("total_cards")
             total = min(total_cards, max_cards) if isinstance(total_cards, int) else max_cards
-            pbar = tqdm(total=total, desc="Fetching from Scryfall search", unit="card")
+            pbar = tqdm(total=total, desc="Fetching from Scryfall search", unit="card", **TQDM_KWARGS)
         remaining = max_cards - len(cards)
         to_add = page_cards[:remaining]
         cards.extend(to_add)
@@ -100,7 +106,7 @@ def scryfall_search(query, max_cards):
         url = data.get("next_page")
         params = None
     if pbar is None:
-        pbar = tqdm(total=0, desc="Fetching from Scryfall search", unit="card")
+        pbar = tqdm(total=0, desc="Fetching from Scryfall search", unit="card", **TQDM_KWARGS)
     pbar.close()
     return cards[:max_cards]
 
@@ -110,7 +116,7 @@ def download_json_stream(url):
         raise RuntimeError(f"Could not download bulk JSON from {url}")
     total = int(r.headers.get("Content-Length", 0))
     chunks = []
-    with tqdm(total=total if total > 0 else None, desc="Downloading Scryfall bulk JSON", unit="B", unit_scale=True) as pbar:
+    with tqdm(total=total if total > 0 else None, desc="Downloading Scryfall bulk JSON", unit="B", unit_scale=True, **TQDM_KWARGS) as pbar:
         for chunk in r.iter_content(chunk_size=1024 * 1024):
             if not chunk:
                 continue
@@ -138,7 +144,7 @@ def scryfall_bulk_commander_paper(max_cards):
         raise RuntimeError("Could not find Scryfall default_cards bulk file")
     all_cards = download_json_stream(chosen["download_uri"])
     filtered = []
-    with tqdm(total=len(all_cards), desc="Filtering bulk cards", unit="card") as pbar:
+    with tqdm(total=len(all_cards), desc="Filtering bulk cards", unit="card", **TQDM_KWARGS) as pbar:
         for card in all_cards:
             pbar.update(1)
             if card_matches_commander_paper(card):
@@ -250,8 +256,12 @@ def main():
     seen_oracle_ids = set()
     results = []
 
-    print("Processing cards for EDHREC / Tagger...")
-    for idx, card in enumerate(tqdm(cards, desc="Processing cards", unit="card"), start=1):
+    total_cards = len(cards)
+    edhrec_hits = 0
+    tagger_hits = 0
+    loop_start = time.time()
+    print(f"Processing {total_cards} cards for EDHREC / Tagger...", flush=True)
+    for idx, card in enumerate(tqdm(cards, desc="Processing cards", unit="card", **TQDM_KWARGS), start=1):
         oracle_id = card.get("oracle_id")
         if oracle_id in seen_oracle_ids:
             continue
@@ -259,11 +269,15 @@ def main():
 
         edhrec_url = card.get("related_uris", {}).get("edhrec")
         inclusion_pct = get_inclusion(edhrec_url, edhrec_cache) if edhrec_url else None
+        if inclusion_pct is not None:
+            edhrec_hits += 1
 
         if not args.full_dataset and (inclusion_pct is None or inclusion_pct >= args.threshold):
             continue
 
         tags = [] if args.skip_tagger else get_tagger_tags(card, tagger_cache)
+        if tags:
+            tagger_hits += 1
 
         results.append({
             "name": card.get("name"),
@@ -291,6 +305,18 @@ def main():
         if idx % 250 == 0:
             save_json_cache(EDHREC_CACHE_FILE, edhrec_cache)
             save_json_cache(TAGGER_CACHE_FILE, tagger_cache)
+
+        if idx % 500 == 0 or idx == total_cards:
+            elapsed = time.time() - loop_start
+            rate = idx / elapsed if elapsed > 0 else 0
+            eta = (total_cards - idx) / rate if rate > 0 else 0
+            print(
+                f"[{idx}/{total_cards}] "
+                f"EDHREC: {edhrec_hits} hits | "
+                f"Tagger: {tagger_hits} with tags | "
+                f"elapsed: {elapsed/60:.1f}m | ETA: {eta/60:.1f}m",
+                flush=True,
+            )
 
     results.sort(key=lambda x: ((x["include_pct"] is None), -(x["include_pct"] or -1), x["name"].lower()))
 
