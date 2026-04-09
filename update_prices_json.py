@@ -11,6 +11,7 @@ import json, os, time, sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 import requests
+import xml.etree.ElementTree as ET
 
 # Base directory of the script
 BASE_DIR = Path(__file__).resolve().parent
@@ -20,6 +21,16 @@ DB_FILE = Path(os.environ.get("CARDSITE_DB", BASE_DIR / "cards.db"))
 
 # Sleep time between Scryfall API requests to avoid rate limiting
 SCRYFALL_SLEEP = float(os.environ.get("SCRYFALL_SLEEP", "0.12"))
+
+# Safe HTTP GET with error handling
+def safe_get(url, **kwargs):
+    try:
+        r = requests.get(url, timeout=10, **kwargs)
+        r.raise_for_status()
+        return r
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
 
 # Generate a unique key for a card based on oracle ID
 def card_key(card):
