@@ -32,12 +32,60 @@ app.logger.setLevel(logging.DEBUG)
 def get_db():
     return sqlite3.connect(DB_FILE)
 
+def parse_json_array(value):
+    if isinstance(value, list):
+        return value
+    if value is None:
+        return []
+    if not isinstance(value, str):
+        return []
+    text = value.strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+def table_columns(conn, table_name: str):
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return {row[1] for row in cursor.fetchall()}
+
 ## Load cards from the database
 @lru_cache(maxsize=1)
 def load_cards():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM cards')
+
+    columns = table_columns(conn, "cards")
+    oracle_expr = "oracle_id" if "oracle_id" in columns else "NULL AS oracle_id"
+    back_image_expr = "back_image_url" if "back_image_url" in columns else "NULL AS back_image_url"
+    set_expr = "set" if "set" in columns else "NULL AS set"
+    collector_expr = "collector_number" if "collector_number" in columns else "NULL AS collector_number"
+
+    cursor.execute(
+        f"""
+        SELECT
+            id,
+            {oracle_expr},
+            name,
+            card_type,
+            mana_cost,
+            cmc,
+            color,
+            color_identity,
+            include_pct,
+            tags,
+            keywords,
+            image_url,
+            {back_image_expr},
+            {set_expr},
+            {collector_expr}
+        FROM cards
+        """
+    )
     rows = cursor.fetchall()
     conn.close()
     cards = []
@@ -50,12 +98,14 @@ def load_cards():
             'mana_cost': row[4],
             'cmc': row[5],
             'color': row[6],
-            'color_identity': json.loads(row[7]) if (isinstance(row[7], str) and row[7].strip()) else (row[7] or []),
+            'color_identity': parse_json_array(row[7]),
             'include_pct': row[8],
-            'tags': json.loads(row[9]) if (isinstance(row[9], str) and row[9].strip()) else (row[9] or []),
-            'keywords': json.loads(row[10]) if (isinstance(row[10], str) and row[10].strip()) else (row[10] or []),
+            'tags': parse_json_array(row[9]),
+            'keywords': parse_json_array(row[10]),
             'image_url': row[11],
-            'back_image_url': row[12]
+            'back_image_url': row[12],
+            'set': row[13],
+            'collector_number': row[14],
         }
         cards.append(card)
     return cards
@@ -106,9 +156,9 @@ def merged_payload():
     merged_cards = []
     for card in cards:
         merged = dict(card)
-        key = f"{card.get('set', '').lower()}:{card.get('collector_number', '').lower()}"
-        if not key or key == ':':
-            key = card.get('oracle_id', '')
+        key = str(card.get('oracle_id') or "")
+        if not key:
+            key = card_key(card)
         merged["price"] = prices.get(key, {})
         merged_cards.append(merged)
     meta = {"usd_sek_rate": fx_rate, "card_count": len(merged_cards)}
