@@ -60,10 +60,10 @@ def load_cards():
     cursor = conn.cursor()
 
     columns = table_columns(conn, "cards")
-    oracle_expr = "oracle_id" if "oracle_id" in columns else "NULL AS oracle_id"
-    back_image_expr = "back_image_url" if "back_image_url" in columns else "NULL AS back_image_url"
-    set_expr = "set" if "set" in columns else "NULL AS set"
-    collector_expr = "collector_number" if "collector_number" in columns else "NULL AS collector_number"
+    oracle_expr = '"oracle_id" AS oracle_id' if "oracle_id" in columns else "NULL AS oracle_id"
+    back_image_expr = '"back_image_url" AS back_image_url' if "back_image_url" in columns else "NULL AS back_image_url"
+    set_expr = '"set" AS set_code' if "set" in columns else "NULL AS set_code"
+    collector_expr = '"collector_number" AS collector_number' if "collector_number" in columns else "NULL AS collector_number"
 
     cursor.execute(
         f"""
