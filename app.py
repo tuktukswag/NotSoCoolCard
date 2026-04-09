@@ -2,7 +2,7 @@
 
 NotSoCoolCard - A web application for searching and validating Magic: The Gathering Commander cards.
 
-This Flask app serves a frontend for card search and deck checking, using data from JSON files.
+This Flask app serves a frontend for card search and deck checking, using data from a SQLite database.
 
 """
 
@@ -26,16 +26,13 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 app.logger.setLevel(logging.DEBUG)
 
-# Helper function to load JSON from file, returning default if file doesn't exist
-def load_json_file(path: Path, default):
-    if not path.exists(): return default
-    with open(path, "r", encoding="utf-8") as f: return json.load(f)
+
 
 # Get DB connection
 def get_db():
     return sqlite3.connect(DB_FILE)
 
-# Load cards from DB
+## Load cards from the database
 @lru_cache(maxsize=1)
 def load_cards():
     conn = get_db()
@@ -53,17 +50,17 @@ def load_cards():
             'mana_cost': row[4],
             'cmc': row[5],
             'color': row[6],
-            'color_identity': json.loads(row[7]) if row[7] else [],
+            'color_identity': json.loads(row[7]) if isinstance(row[7], str) else (row[7] or []),
             'include_pct': row[8],
-            'tags': json.loads(row[9]) if row[9] else [],
-            'keywords': json.loads(row[10]) if row[10] else [],
+            'tags': json.loads(row[9]) if isinstance(row[9], str) else (row[9] or []),
+            'keywords': json.loads(row[10]) if isinstance(row[10], str) else (row[10] or []),
             'image_url': row[11],
             'back_image_url': row[12]
         }
         cards.append(card)
     return cards
 
-# Load prices from DB
+## Load prices from the database
 @lru_cache(maxsize=1)
 def load_prices():
     conn = get_db()
@@ -84,7 +81,7 @@ def load_prices():
         }
     return prices
 
-# Load fx rate
+## Load USD/SEK exchange rate from the database
 @lru_cache(maxsize=1)
 def load_fx():
     conn = get_db()
@@ -94,14 +91,14 @@ def load_fx():
     conn.close()
     return float(row[0]) if row else None
 
-# Generate a unique key for a card based on set and collector number, or oracle ID as fallback
+## Generate a unique key for a card based on set and collector number, or oracle ID as fallback
 def card_key(card):
     set_code = str(card.get("set") or "").lower()
     collector_number = str(card.get("collector_number") or "").lower()
     if set_code and collector_number: return f"{set_code}:{collector_number}"
     return str(card.get("oracle_id") or "")
 
-# Merge cards data with prices and forex rates
+## Merge cards data with prices and forex rates
 def merged_payload():
     cards = load_cards()
     prices = load_prices()
@@ -117,7 +114,7 @@ def merged_payload():
     meta = {"usd_sek_rate": fx_rate, "card_count": len(merged_cards)}
     return {"meta": meta, "cards": merged_cards}
 
-# Safe HTTP GET request with retries and rate limit handling
+## Safe HTTP GET request with retries and rate limit handling
 def safe_get(url: str, headers=None, timeout: int = 30):
     hdrs = {"User-Agent": "Mozilla/5.0 (compatible; Cardsite/1.0)", "Accept": "text/html,application/json,application/xml;q=0.9,*/*;q=0.8"}
     if headers: hdrs.update(headers)
@@ -131,7 +128,7 @@ def safe_get(url: str, headers=None, timeout: int = 30):
             continue
     return None
 
-# Parse a plain text decklist into card entries with quantities and names
+## Parse a plain text decklist into card entries with quantities and names
 def parse_plain_decklist(text: str):
     entries = []
     for raw_line in text.splitlines():
@@ -142,17 +139,17 @@ def parse_plain_decklist(text: str):
         entries.append({"quantity": int(m.group(1)), "name": m.group(2).strip()})
     return entries
 
-# Extract deck ID from Moxfield URL
+## Extract deck ID from Moxfield URL
 def extract_moxfield_id(url: str):
     m = re.search(r"moxfield\.com/decks/([A-Za-z0-9\-_]+)", url, flags=re.IGNORECASE)
     return m.group(1) if m else None
 
-# Extract deck ID from Archidekt URL
+## Extract deck ID from Archidekt URL
 def extract_archidekt_id(url: str):
     m = re.search(r"archidekt\.com/decks/(\d+)", url, flags=re.IGNORECASE)
     return m.group(1) if m else None
 
-# Recursively extract card entries from JSON data structures
+## Recursively extract card entries from JSON data structures (for remote deck APIs)
 def extract_card_entries_from_json(obj: Any, found):
     if isinstance(obj, dict):
         qty = None
@@ -177,7 +174,7 @@ def extract_card_entries_from_json(obj: Any, found):
     elif isinstance(obj, list):
         for i in obj: extract_card_entries_from_json(i, found)
 
-# Extract decklist from Moxfield HTML page
+## Extract decklist from Moxfield HTML page
 def moxfield_from_html(url: str, headers=None):
     r = safe_get(url, headers=headers)
     if not r: return None
@@ -194,7 +191,7 @@ def moxfield_from_html(url: str, headers=None):
             pass
     return None
 
-# Resolve decklist from Moxfield URL using API or HTML parsing
+## Resolve decklist from Moxfield URL using API or HTML parsing
 def resolve_moxfield(url: str):
     deck_id = extract_moxfield_id(url)
     print(f"Moxfield: extracted deck_id {deck_id}")
@@ -234,7 +231,7 @@ def resolve_moxfield(url: str):
     print("Moxfield: failed to extract decklist")
     return None
 
-# Resolve decklist from Archidekt URL using API
+## Resolve decklist from Archidekt URL using API
 def resolve_archidekt(url: str):
     deck_id = extract_archidekt_id(url)
     print(f"Archidekt: extracted deck_id {deck_id}")
@@ -263,7 +260,7 @@ def resolve_archidekt(url: str):
     print("Archidekt: failed to extract decklist")
     return None
 
-# Resolve decklist from generic HTML page by parsing text
+## Resolve decklist from generic HTML page by parsing text
 def resolve_generic_html(url: str, source_name: str):
     r = safe_get(url)
     if not r: return None
@@ -271,7 +268,7 @@ def resolve_generic_html(url: str, source_name: str):
     if parsed: return (source_name, "\n".join(f'{e["quantity"]} {e["name"]}' for e in parsed))
     return None
 
-# Main function to resolve decklist from various URL types
+## Main function to resolve decklist from various URL types
 def resolve_deck_url(url: str):
     lowered = url.lower().strip()
     print(f"Resolving deck URL: {url}")
@@ -290,7 +287,7 @@ def resolve_deck_url(url: str):
     print("Falling back to generic HTML parsing")
     return resolve_generic_html(url, "generic")
 
-# Cached function to fetch mana symbol SVG URIs from Scryfall API
+## Cached function to fetch mana symbol SVG URIs from Scryfall API
 @lru_cache(maxsize=1)
 def get_symbology_map():
     r = safe_get("https://api.scryfall.com/symbology", headers={"Accept": "application/json"})
@@ -299,19 +296,19 @@ def get_symbology_map():
     except Exception: return {}
     return {item.get("symbol"): item.get("svg_uri") for item in data.get("data", []) if item.get("symbol") and item.get("svg_uri")}
 
-# Route for the main index page
+## Route for the main index page
 @app.route("/")
 def index(): return render_template("index.html", meta=merged_payload().get("meta", {}))
 
-# API route to get merged cards and prices data
+## API route to get merged cards and prices data
 @app.route("/api/cards")
 def api_cards(): return jsonify(merged_payload())
 
-# API route to get mana symbol SVG URIs
+## API route to get mana symbol SVG URIs
 @app.route("/api/symbology")
 def api_symbology(): return jsonify({"symbols": get_symbology_map()})
 
-# API route to resolve decklist from URL
+## API route to resolve decklist from URL
 @app.route("/api/deck-resolve", methods=["POST"])
 def api_deck_resolve():
     raw_body = request.get_data(as_text=True)
@@ -345,7 +342,7 @@ def api_deck_resolve():
     print(f"api_deck_resolve: success from {source_name}")
     return jsonify({"ok": True, "source": source_name, "decklist": decklist})
 
-# Main entry point to run the Flask app
+## Main entry point to run the Flask app
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
