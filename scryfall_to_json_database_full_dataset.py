@@ -78,6 +78,21 @@ def get_image_url(card):
                 return face["image_uris"].get("normal")
     return None
 
+def get_back_image_url(card, front_url=None):
+    # Prefer explicit second-face image for transform/modal double-faced cards.
+    faces = card.get("card_faces") or []
+    if len(faces) >= 2:
+        second_face = faces[1]
+        image_uris = second_face.get("image_uris") or {}
+        if image_uris.get("normal"):
+            return image_uris.get("normal")
+
+    # Fallback for legacy URLs where back art can be derived from front path.
+    if front_url and "/front/" in front_url:
+        return front_url.replace("/front/", "/back/")
+
+    return None
+
 def color_identity(card):
     colors = card.get("color_identity", [])
     order = ["W", "U", "B", "R", "G"]
@@ -279,6 +294,9 @@ def main():
         if tags:
             tagger_hits += 1
 
+        front_image_url = get_image_url(card)
+        back_image_url = get_back_image_url(card, front_image_url)
+
         results.append({
             "name": card.get("name"),
             "oracle_id": oracle_id,
@@ -293,7 +311,8 @@ def main():
             "edhrec_rank": card.get("edhrec_rank"),
             "edhrec_link": edhrec_url,
             "scryfall_link": card.get("scryfall_uri"),
-            "image_url": get_image_url(card),
+            "image_url": front_image_url,
+            "back_image_url": back_image_url,
             "color": color_identity(card),
             "color_identity": card.get("color_identity", []),
             "tags": tags,

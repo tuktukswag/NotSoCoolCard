@@ -110,6 +110,22 @@ def create_tables(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def normalize_back_images(cards: list[dict]) -> int:
+    """Fill missing back_image_url for transform cards using legacy URL mapping."""
+    updated = 0
+    for card in cards:
+        if card.get("back_image_url"):
+            continue
+        keywords = card.get("keywords") or []
+        if "Transform" not in keywords:
+            continue
+        front_url = card.get("image_url")
+        if isinstance(front_url, str) and "/front/" in front_url:
+            card["back_image_url"] = front_url.replace("/front/", "/back/")
+            updated += 1
+    return updated
+
+
 def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
     if not cards_json_path.exists():
         raise FileNotFoundError(f"Missing cards dataset: {cards_json_path}")
@@ -119,6 +135,14 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
         payload = json.load(f)
 
     cards = payload.get("cards", [])
+    backfilled_back_images = normalize_back_images(cards)
+    if backfilled_back_images:
+        print(f"Back-image safety fill: {backfilled_back_images} cards")
+        # Keep cards.json consistent with what is inserted into SQLite.
+        payload["cards"] = cards
+        with cards_json_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+
     conn = sqlite3.connect(db_path)
     create_tables(conn)
     cursor = conn.cursor()
