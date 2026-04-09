@@ -25,13 +25,6 @@ SCRYFALL_SLEEP = float(os.environ.get("SCRYFALL_SLEEP", "0.12"))
 def card_key(card):
     return str(card.get("oracle_id") or "")
 
-# Safe HTTP GET request with retries and rate limit handling
-def card_key(card: dict) -> str:
-    set_code = str(card.get("set") or "").lower()
-    collector_number = str(card.get("collector_number") or "").lower()
-    if set_code and collector_number: return f"{set_code}:{collector_number}"
-    return str(card.get("oracle_id") or "")
-
 # Fetch prices for a single card from Scryfall API - returns cheapest printing
 def fetch_card_prices(card: dict):
     oracle_id = card.get("oracle_id")
