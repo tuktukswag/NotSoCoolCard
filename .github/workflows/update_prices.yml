@@ -1,4 +1,4 @@
-name: Update prices.json
+name: Refresh cards.db
 
 on:
   workflow_dispatch:
@@ -21,11 +21,10 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Update prices.json
+      - name: Refresh cards and prices in DB
         env:
           CARDSITE_DB: cards.db
-          SCRYFALL_SLEEP: "0.12"
-        run: python update_prices_json.py
+        run: python update_all_data.py --skip-fetch
       - name: Commit updated prices
         run: |
           git config user.name "github-actions[bot]"
