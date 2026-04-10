@@ -10,7 +10,7 @@ import time
 import unicodedata
 from datetime import datetime, timezone
 from html import unescape
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote_plus, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -104,10 +104,15 @@ def get_back_image_url(card, front_url=None):
 def _slugify_edhrec_name(name):
     text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode("ascii")
     text = text.split(" // ", 1)[0].lower()
+    text = re.sub(r"['\u2019`]", "", text)  # drop apostrophes; EDHREC omits them (builder's -> builders)
     text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return text
 
-def normalize_edhrec_card_url(card):
+def _needs_edhrec_route_lookup(name):
+    # Route URLs are more reliable for names with symbols and formatted numerics (e.g. +2, 1,000).
+    return bool(re.search(r"[_.:,\+]|\d", str(name or "")))
+
+def normalize_edhrec_card_url(card, route_special_names=False):
     edhrec_url = card.get("related_uris", {}).get("edhrec")
     if not edhrec_url:
         return None
@@ -124,12 +129,18 @@ def normalize_edhrec_card_url(card):
     parsed = urlparse(edhrec_url)
     if "/route/" in parsed.path:
         cc_value = parse_qs(parsed.query).get("cc", [""])[0]
-        slug = _slugify_edhrec_name(cc_value or card.get("name"))
+        lookup_name = cc_value or card.get("name")
+        if route_special_names and _needs_edhrec_route_lookup(lookup_name):
+            return f"https://edhrec.com/route/?cc={quote_plus(str(lookup_name))}"
+        slug = _slugify_edhrec_name(lookup_name)
         if slug:
             return f"https://edhrec.com/cards/{slug}"
 
     # Final fallback from card name.
-    slug = _slugify_edhrec_name(card.get("name"))
+    card_name = card.get("name")
+    if route_special_names and _needs_edhrec_route_lookup(card_name):
+        return f"https://edhrec.com/route/?cc={quote_plus(str(card_name))}"
+    slug = _slugify_edhrec_name(card_name)
     if slug:
         return f"https://edhrec.com/cards/{slug}"
     return edhrec_url
@@ -277,6 +288,7 @@ def main():
     parser.add_argument("--use-bulk", action="store_true", help="Use Scryfall bulk data instead of search API")
     parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
     parser.add_argument("--full-dataset", action="store_true", help="Keep all cards, even if include_pct is null or above threshold")
+    parser.add_argument("--edhrec-route-special-names", action="store_true", help="For names containing _, :, ., + or digits, use EDHREC route URL instead of card slug")
     args = parser.parse_args()
 
     ensure_cache_dir()
@@ -296,12 +308,16 @@ def main():
     loop_start = time.time()
     print(f"Processing {total_cards} cards for EDHREC / Tagger...", flush=True)
     for idx, card in enumerate(tqdm(cards, desc="Processing cards", unit="card", **TQDM_KWARGS), start=1):
+        type_line = str(card.get("type_line") or "")
+        if "sticker" in type_line.lower():
+            continue
+
         oracle_id = card.get("oracle_id")
         if oracle_id in seen_oracle_ids:
             continue
         seen_oracle_ids.add(oracle_id)
 
-        inclusion_url = normalize_edhrec_card_url(card)
+        inclusion_url = normalize_edhrec_card_url(card, route_special_names=args.edhrec_route_special_names)
         inclusion_pct = get_inclusion(inclusion_url, edhrec_cache) if inclusion_url else None
         if inclusion_pct is not None:
             edhrec_hits += 1

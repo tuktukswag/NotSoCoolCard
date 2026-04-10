@@ -59,6 +59,21 @@ const el = {
 function asArray(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
 function normalizeText(v){ return String(v || "").toLowerCase().replace(/[^\w\s']/g," ").replace(/\s+/g," ").trim(); }
 function parseCommaTerms(v){ return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean); }
+function slugifyCardName(v){ return String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[’'`]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+function buildEdhrecLink(card){
+  if(card?.edhrec_link) return card.edhrec_link;
+  if(card?.edhrec_url) return card.edhrec_url;
+  const slug = slugifyCardName(card?.name);
+  return slug ? `https://edhrec.com/cards/${slug}` : "#";
+}
+function buildScryfallLink(card){
+  if(card?.scryfall_link) return card.scryfall_link;
+  const setCode = String(card?.set || card?.set_code || "").toLowerCase().trim();
+  const collector = String(card?.collector_number || "").toLowerCase().trim();
+  if(setCode && collector) return `https://scryfall.com/card/${encodeURIComponent(setCode)}/${encodeURIComponent(collector)}`;
+  const name = String(card?.name || "").trim();
+  return name ? `https://scryfall.com/search?q=${encodeURIComponent(`!\"${name}\"`)}` : "#";
+}
 function usdPrice(card){ const usd = card?.price?.usd; const n = Number(usd); return Number.isFinite(n) ? n : null; }
 function sekPrice(card){ const usd = usdPrice(card); return usd !== null && USD_SEK_RATE !== null ? usd * USD_SEK_RATE : null; }
 function formatSek(v){ return v === null ? "—" : new Intl.NumberFormat("sv-SE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
@@ -204,8 +219,8 @@ function renderCards(cards){
     node.querySelector(".cmc-pill").textContent = `MV: ${card.cmc ?? "—"}`;
     node.querySelector(".commander-pill").innerHTML = renderColorIdentityPips(card);
     node.querySelector(".price-pill").textContent = `SEK: ${formatSek(sekPrice(card))}`;
-    node.querySelector(".edhrec-link").href = card.edhrec_link || "#";
-    node.querySelector(".scryfall-link").href = card.scryfall_link || "#";
+    node.querySelector(".edhrec-link").href = buildEdhrecLink(card);
+    node.querySelector(".scryfall-link").href = buildScryfallLink(card);
     node.querySelector(".image-link").href = card.image_url || "#";
     const img = node.querySelector(".card-image");
     img.alt = card.name || "Card image"; img.src = card.image_url || "";

@@ -40,6 +40,16 @@ DEFAULT_MAX_CARDS = 200000
 DEFAULT_FETCH_SLEEP = 0.12
 MAX_HTTP_RETRIES = 7
 
+MELD_EXCLUDE_NAMES = {
+    "Brisela, Voice of Nightmares",
+    "Chittering Host",
+    "Hanweir, the Writhing Township",
+    "Mishra, Lost to Phyrexia",
+    "Ragnarok, Divine Deliverance",
+    "Titania, Gaea Incarnate",
+    "Urza, Planeswalker",
+}
+
 
 def run_cards_fetch(skip_tagger: bool, pretty: bool, max_cards: int = DEFAULT_MAX_CARDS, refresh_bulk: bool = False) -> None:
     cmd = [
@@ -54,6 +64,7 @@ def run_cards_fetch(skip_tagger: bool, pretty: bool, max_cards: int = DEFAULT_MA
         str(CARDS_JSON),
         "--use-bulk",
         "--full-dataset",
+        "--edhrec-route-special-names",
     ]
     if refresh_bulk:
         cmd.append("--refresh-bulk")
@@ -139,9 +150,22 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
         payload = json.load(f)
 
     cards = payload.get("cards", [])
+    sticker_before = len(cards)
+    cards = [c for c in cards if "sticker" not in str(c.get("card_type") or "").lower()]
+    removed_stickers = sticker_before - len(cards)
+    if removed_stickers:
+        print(f"Sticker filter: removed {removed_stickers} cards from cards.json payload")
+
+    meld_before = len(cards)
+    cards = [c for c in cards if str(c.get("name") or "") not in MELD_EXCLUDE_NAMES]
+    removed_meld = meld_before - len(cards)
+    if removed_meld:
+        print(f"Meld hardcoded filter: removed {removed_meld} cards from cards.json payload")
+
     backfilled_back_images = normalize_back_images(cards)
     if backfilled_back_images:
         print(f"Back-image safety fill: {backfilled_back_images} cards")
+    if removed_stickers or removed_meld or backfilled_back_images:
         # Keep cards.json consistent with what is inserted into SQLite.
         payload["cards"] = cards
         with cards_json_path.open("w", encoding="utf-8") as f:

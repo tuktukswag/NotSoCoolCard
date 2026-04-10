@@ -393,6 +393,7 @@ def api_deck_resolve():
         print(f"api_deck_resolve: received data={data}")
 
     url = (data.get("url") or "").strip()
+    lowered = url.lower()
     if not url:
         print("api_deck_resolve: missing URL")
         return jsonify({"ok": False, "error": "Missing URL"}), 400
@@ -402,7 +403,7 @@ def api_deck_resolve():
         print("api_deck_resolve: resolve_deck_url failed")
         error_msg = "Could not read a decklist from that URL. Pasting a plain text decklist is the most reliable option."
         if "moxfield.com/decks/" in lowered:
-            error_msg += " Moxfield may be blocking automated requests; try pasting the decklist manually."
+            error_msg = "Moxfield import failed. Please Export plain text from Moxfield and paste here instead"
         return jsonify({"ok": False, "error": error_msg}), 400
 
     source_name, decklist = resolved

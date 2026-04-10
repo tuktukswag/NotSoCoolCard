@@ -3,3 +3,7 @@
 .cache/scryfall_default_cards.meta.json
 .cache/tagger_tags_cache.json
 .cache/edhrec_inclusion_cache.json
+.cache/scryfall_layout_cache.json
+__pycache__/scryfall_to_json_database_full_dataset.cpython-313.pyc
+.cache/tagger_tags_cache.json
+.cache/edhrec_inclusion_cache.json
