@@ -7,12 +7,16 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone
 from html import unescape
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+from scryfall_bulk_cache import load_default_cards_bulk
 
 # GitHub Actions and other CI environments set CI=true.
 # In CI we force tqdm to write newlines so each update appears as a log line.
@@ -49,7 +53,7 @@ def save_json_cache(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
 
-def safe_get(url, params=None, headers=None, timeout=30, retries=5, pause_429=3.0, stream=False):
+def safe_get(url, params=None, headers=None, timeout=30, retries=5, pause_429=3.0, stream=False, request_label=None):
     merged_headers = dict(BROWSER_HEADERS)
     if headers:
         merged_headers.update(headers)
@@ -59,11 +63,15 @@ def safe_get(url, params=None, headers=None, timeout=30, retries=5, pause_429=3.
             if r.status_code == 404:
                 return None
             if r.status_code == 429:
+                if request_label:
+                    print(f"  {request_label}: rate limited, retry {attempt + 1}/{retries} in {pause_429 * (attempt + 1):.1f}s", flush=True)
                 time.sleep(pause_429 * (attempt + 1))
                 continue
             r.raise_for_status()
             return r
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as exc:
+            if request_label:
+                print(f"  {request_label}: retry {attempt + 1}/{retries} after {type(exc).__name__} in {1.5 * (attempt + 1):.1f}s", flush=True)
             if attempt == retries - 1:
                 return None
             time.sleep(1.5 * (attempt + 1))
@@ -92,6 +100,39 @@ def get_back_image_url(card, front_url=None):
         return front_url.replace("/front/", "/back/")
 
     return None
+
+def _slugify_edhrec_name(name):
+    text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode("ascii")
+    text = text.split(" // ", 1)[0].lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text
+
+def normalize_edhrec_card_url(card):
+    edhrec_url = card.get("related_uris", {}).get("edhrec")
+    if not edhrec_url:
+        return None
+
+    # Already a card page.
+    if "/cards/" in edhrec_url:
+        return edhrec_url
+
+    # Commander pages should always be mapped to the card page for inclusion %.
+    if "/commanders/" in edhrec_url:
+        return edhrec_url.replace("/commanders/", "/cards/", 1)
+
+    # Scryfall often provides route links like /route/?cc=Card+Name.
+    parsed = urlparse(edhrec_url)
+    if "/route/" in parsed.path:
+        cc_value = parse_qs(parsed.query).get("cc", [""])[0]
+        slug = _slugify_edhrec_name(cc_value or card.get("name"))
+        if slug:
+            return f"https://edhrec.com/cards/{slug}"
+
+    # Final fallback from card name.
+    slug = _slugify_edhrec_name(card.get("name"))
+    if slug:
+        return f"https://edhrec.com/cards/{slug}"
+    return edhrec_url
 
 def color_identity(card):
     colors = card.get("color_identity", [])
@@ -125,39 +166,13 @@ def scryfall_search(query, max_cards):
     pbar.close()
     return cards[:max_cards]
 
-def download_json_stream(url):
-    r = safe_get(url, headers={"Accept": "application/json"}, timeout=120, stream=True)
-    if not r:
-        raise RuntimeError(f"Could not download bulk JSON from {url}")
-    total = int(r.headers.get("Content-Length", 0))
-    chunks = []
-    with tqdm(total=total if total > 0 else None, desc="Downloading Scryfall bulk JSON", unit="B", unit_scale=True, **TQDM_KWARGS) as pbar:
-        for chunk in r.iter_content(chunk_size=1024 * 1024):
-            if not chunk:
-                continue
-            chunks.append(chunk)
-            pbar.update(len(chunk))
-    raw = b"".join(chunks)
-    return json.loads(raw.decode("utf-8"))
-
 def card_matches_commander_paper(card):
     legalities = card.get("legalities") or {}
     games = card.get("games") or []
     return legalities.get("commander") == "legal" and "paper" in games
 
-def scryfall_bulk_commander_paper(max_cards):
-    bulk_index = safe_get("https://api.scryfall.com/bulk-data", headers={"Accept": "application/json"})
-    if not bulk_index:
-        raise RuntimeError("Could not fetch Scryfall bulk-data index")
-    data = bulk_index.json().get("data", [])
-    chosen = None
-    for item in data:
-        if item.get("type") == "default_cards":
-            chosen = item
-            break
-    if not chosen or not chosen.get("download_uri"):
-        raise RuntimeError("Could not find Scryfall default_cards bulk file")
-    all_cards = download_json_stream(chosen["download_uri"])
+def scryfall_bulk_commander_paper(max_cards, refresh_bulk=False):
+    all_cards = load_default_cards_bulk(base_dir=".", safe_get=safe_get, tqdm_kwargs=TQDM_KWARGS, force_refresh=refresh_bulk)
     filtered = []
     with tqdm(total=len(all_cards), desc="Filtering bulk cards", unit="card", **TQDM_KWARGS) as pbar:
         for card in all_cards:
@@ -240,12 +255,15 @@ def get_tagger_tags(card, tagger_cache):
     tagger_cache[cache_key] = cleaned
     return cleaned
 
-def fetch_cards(query, max_cards, use_bulk):
+def fetch_cards(query, max_cards, use_bulk, refresh_bulk=False):
     if use_bulk:
         normalized_query = " ".join(query.lower().split())
         if normalized_query != "legal:commander game:paper":
             raise ValueError("--use-bulk only supports the exact query: legal:commander game:paper")
-        return scryfall_bulk_commander_paper(max_cards)
+        try:
+            return scryfall_bulk_commander_paper(max_cards, refresh_bulk=refresh_bulk)
+        except RuntimeError as exc:
+            print(f"Bulk fetch failed, falling back to search API: {exc}", flush=True)
     return scryfall_search(query, max_cards)
 
 def main():
@@ -257,6 +275,7 @@ def main():
     parser.add_argument("--skip-tagger", action="store_true", help="Skip Scryfall Tagger tags for faster runs")
     parser.add_argument("--pretty", action="store_true", help="Write formatted JSON")
     parser.add_argument("--use-bulk", action="store_true", help="Use Scryfall bulk data instead of search API")
+    parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
     parser.add_argument("--full-dataset", action="store_true", help="Keep all cards, even if include_pct is null or above threshold")
     args = parser.parse_args()
 
@@ -265,7 +284,7 @@ def main():
     tagger_cache = load_json_cache(TAGGER_CACHE_FILE)
 
     print("Starting Scryfall fetch...")
-    cards = fetch_cards(args.query, args.max_cards, args.use_bulk)
+    cards = fetch_cards(args.query, args.max_cards, args.use_bulk, refresh_bulk=args.refresh_bulk)
     print(f"Fetched {len(cards)} cards from Scryfall")
 
     seen_oracle_ids = set()
@@ -282,8 +301,8 @@ def main():
             continue
         seen_oracle_ids.add(oracle_id)
 
-        edhrec_url = card.get("related_uris", {}).get("edhrec")
-        inclusion_pct = get_inclusion(edhrec_url, edhrec_cache) if edhrec_url else None
+        inclusion_url = normalize_edhrec_card_url(card)
+        inclusion_pct = get_inclusion(inclusion_url, edhrec_cache) if inclusion_url else None
         if inclusion_pct is not None:
             edhrec_hits += 1
 
@@ -309,7 +328,7 @@ def main():
             "mana_cost": card.get("mana_cost"),
             "cmc": card.get("cmc"),
             "edhrec_rank": card.get("edhrec_rank"),
-            "edhrec_link": edhrec_url,
+            "edhrec_link": inclusion_url,
             "scryfall_link": card.get("scryfall_uri"),
             "image_url": front_image_url,
             "back_image_url": back_image_url,

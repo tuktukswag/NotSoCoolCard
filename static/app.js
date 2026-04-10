@@ -68,7 +68,7 @@ function getExactColorFilter(){ const order = ["W","U","B","R","G","COLORLESS"];
 function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); if(document.getElementById("commanderC")?.checked) c.push("C"); return c; }
 function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.length) return true; const cc = Array.isArray(card.color_identity)&&card.color_identity.length ? card.color_identity : (card.color&&card.color!=="COLORLESS" ? card.color.split("") : []); return cc.every(x=>commanderColors.includes(x)); }
 function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
-function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.some(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
+function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.every(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
 
 // Check if a card matches the current filter criteria
 function cardMatches(card){
@@ -144,18 +144,40 @@ function renderManaCost(manaCost){
 }
 
 function renderColorIdentityPips(card){
-  const tokens = [];
+  const WUBRG = ["W","U","B","R","G"];
+  const identitySet = new Set();
   if(Array.isArray(card.color_identity) && card.color_identity.length){
-    for(const color of card.color_identity){
-      if(color) tokens.push(`{${String(color).toUpperCase()}}`);
-    }
-  } else if(String(card.color || "").toUpperCase() === "COLORLESS"){
-    tokens.push("{C}");
+    for(const c of card.color_identity) identitySet.add(String(c).toUpperCase());
   }
-  if(!tokens.length) return "Identity: —";
+  if(!identitySet.size){
+    if(String(card.color || "").toUpperCase() === "COLORLESS"){
+      const wrapper = document.createElement("span");
+      wrapper.className = "mana-pips";
+      const img = document.createElement("img");
+      img.className = "mana-pip"; img.alt = "{C}"; img.title = "{C}"; img.src = SYMBOLOGY["{C}"] || "";
+      wrapper.appendChild(img);
+      return wrapper.outerHTML;
+    }
+    return "Identity: —";
+  }
+  // Follow mana cost symbol order first, then WUBRG for remainder (e.g. colours from rules text)
+  const ordered = [];
+  const seen = new Set();
+  if(card.mana_cost){
+    const costTokens = String(card.mana_cost).replace(/ \/\/ /g, "").match(/\{[^}]+\}/g) || [];
+    for(const tok of costTokens){
+      const inner = tok.slice(1, -1).toUpperCase();
+      if(WUBRG.includes(inner) && identitySet.has(inner) && !seen.has(inner)){
+        seen.add(inner); ordered.push(`{${inner}}`);
+      }
+    }
+  }
+  for(const c of WUBRG){
+    if(identitySet.has(c) && !seen.has(c)) ordered.push(`{${c}}`);
+  }
   const wrapper = document.createElement("span");
   wrapper.className = "mana-pips";
-  for(const token of tokens){
+  for(const token of ordered){
     const img = document.createElement("img");
     img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
     wrapper.appendChild(img);

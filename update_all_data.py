@@ -26,6 +26,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+from tqdm import tqdm
+
+from scryfall_bulk_cache import load_default_cards_bulk
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_FILE = Path(os.environ.get("CARDSITE_DB", BASE_DIR / "cards.db"))
@@ -35,11 +38,10 @@ DEFAULT_QUERY = "legal:commander game:paper"
 DEFAULT_THRESHOLD = 2.0
 DEFAULT_MAX_CARDS = 200000
 DEFAULT_FETCH_SLEEP = 0.12
-DEFAULT_PRICE_SLEEP = 0.12
 MAX_HTTP_RETRIES = 7
 
 
-def run_cards_fetch(skip_tagger: bool, pretty: bool) -> None:
+def run_cards_fetch(skip_tagger: bool, pretty: bool, max_cards: int = DEFAULT_MAX_CARDS, refresh_bulk: bool = False) -> None:
     cmd = [
         sys.executable,
         str(BASE_DIR / "scryfall_to_json_database_full_dataset.py"),
@@ -47,12 +49,14 @@ def run_cards_fetch(skip_tagger: bool, pretty: bool) -> None:
         "--threshold",
         str(DEFAULT_THRESHOLD),
         "--max-cards",
-        str(DEFAULT_MAX_CARDS),
+        str(max_cards),
         "--out",
         str(CARDS_JSON),
         "--use-bulk",
         "--full-dataset",
     ]
+    if refresh_bulk:
+        cmd.append("--refresh-bulk")
     if skip_tagger:
         cmd.append("--skip-tagger")
     if pretty:
@@ -188,8 +192,9 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
 
 
 def safe_get(url: str, **kwargs):
+    request_label = kwargs.pop("request_label", None)
     retry_delay = 1.5
-    for _ in range(MAX_HTTP_RETRIES):
+    for attempt in range(1, MAX_HTTP_RETRIES + 1):
         try:
             r = requests.get(url, timeout=20, **kwargs)
             if r.status_code == 404:
@@ -197,12 +202,16 @@ def safe_get(url: str, **kwargs):
             if r.status_code == 429:
                 retry_after = r.headers.get("Retry-After")
                 delay = float(retry_after) if retry_after else retry_delay
+                if request_label:
+                    print(f"  {request_label}: rate limited, retry {attempt}/{MAX_HTTP_RETRIES} in {delay:.1f}s", flush=True)
                 time.sleep(delay)
                 retry_delay = min(retry_delay * 1.8, 45)
                 continue
             r.raise_for_status()
             return r
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            if request_label:
+                print(f"  {request_label}: retry {attempt}/{MAX_HTTP_RETRIES} after {type(exc).__name__} in {retry_delay:.1f}s", flush=True)
             time.sleep(retry_delay)
             retry_delay = min(retry_delay * 1.8, 45)
     return None
@@ -291,48 +300,44 @@ def fetch_usd_sek_rate() -> float | None:
     return None
 
 
-def fetch_cheapest_printing_prices(oracle_id: str):
-    url = "https://api.scryfall.com/cards/search"
-    params = {"q": f"oracle_id:{oracle_id}", "order": "released"}
-    r = safe_get(url, params=params, headers={"Accept": "application/json"})
-    if not r:
-        return None
+def fetch_bulk_prices_by_oracle_id(refresh_bulk: bool = False) -> dict:
+    """Download Scryfall default_cards bulk data and return cheapest price per oracle_id."""
+    CI = os.environ.get("CI", "").lower() in ("true", "1", "yes")
+    print("  Loading Scryfall bulk data for prices...", flush=True)
+    try:
+        all_cards = load_default_cards_bulk(
+            base_dir=BASE_DIR,
+            safe_get=safe_get,
+            tqdm_kwargs=dict(file=sys.stdout, dynamic_ncols=not CI, mininterval=5 if CI else 0.1),
+            force_refresh=refresh_bulk,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(f"bulk not available, cant fetch prices ({exc})") from exc
 
-    data = r.json()
-    cards_list = data.get("data", [])
-    if not cards_list:
-        return None
-
-    cheapest = None
-    cheapest_price = float("inf")
-    for printing in cards_list:
-        prices = printing.get("prices") or {}
-        usd_price = prices.get("usd")
-        if not usd_price:
+    # Group by oracle_id, keep cheapest USD printing's full price block
+    best: dict[str, tuple[float, dict]] = {}  # oracle_id -> (cheapest_usd, prices_dict)
+    print(f"  Building price map from {len(all_cards)} printings...", flush=True)
+    for card in tqdm(all_cards, desc="Indexing prices", unit="card", file=sys.stdout,
+                     dynamic_ncols=not CI, mininterval=5 if CI else 0.1):
+        if card.get("oversized"):
+            continue
+        oid = card.get("oracle_id")
+        if not oid:
+            continue
+        prices = card.get("prices") or {}
+        usd = prices.get("usd")
+        if not usd:
             continue
         try:
-            usd_val = float(usd_price)
+            usd_val = float(usd)
         except (ValueError, TypeError):
             continue
-        if usd_val < cheapest_price:
-            cheapest_price = usd_val
-            cheapest = prices
-
-    if not cheapest:
-        return None
-
-    return {
-        "usd": cheapest.get("usd"),
-        "usd_foil": cheapest.get("usd_foil"),
-        "usd_etched": cheapest.get("usd_etched"),
-        "eur": cheapest.get("eur"),
-        "eur_foil": cheapest.get("eur_foil"),
-        "eur_etched": cheapest.get("eur_etched"),
-        "tix": cheapest.get("tix"),
-    }
+        if oid not in best or usd_val < best[oid][0]:
+            best[oid] = (usd_val, prices)
+    return {oid: data[1] for oid, data in best.items()}
 
 
-def rebuild_prices(db_path: Path, sleep_seconds: float) -> tuple[int, int, int]:
+def rebuild_prices(db_path: Path, refresh_bulk: bool = False) -> tuple[int, int, int]:
     print("[4/4] Rebuilding prices table...")
     conn = sqlite3.connect(db_path)
     create_tables(conn)
@@ -343,14 +348,16 @@ def rebuild_prices(db_path: Path, sleep_seconds: float) -> tuple[int, int, int]:
     cursor.execute("SELECT DISTINCT oracle_id FROM cards WHERE oracle_id IS NOT NULL AND oracle_id != ''")
     oracle_ids = [row[0] for row in cursor.fetchall()]
 
+    price_map = fetch_bulk_prices_by_oracle_id(refresh_bulk=refresh_bulk)
+
     updated = 0
     skipped = 0
-    for idx, oracle_id in enumerate(oracle_ids, start=1):
-        price_data = fetch_cheapest_printing_prices(oracle_id)
-        if not price_data:
+    CI = os.environ.get("CI", "").lower() in ("true", "1", "yes")
+    for oracle_id in tqdm(oracle_ids, desc="Prices", unit="card", file=sys.stdout, dynamic_ncols=not CI, mininterval=5 if CI else 0.1):
+        prices = price_map.get(oracle_id)
+        if not prices:
             skipped += 1
             continue
-
         cursor.execute(
             """
             INSERT OR REPLACE INTO prices (key, usd, usd_foil, usd_etched, eur, eur_foil, eur_etched, tix)
@@ -358,22 +365,16 @@ def rebuild_prices(db_path: Path, sleep_seconds: float) -> tuple[int, int, int]:
             """,
             (
                 oracle_id,
-                price_data.get("usd"),
-                price_data.get("usd_foil"),
-                price_data.get("usd_etched"),
-                price_data.get("eur"),
-                price_data.get("eur_foil"),
-                price_data.get("eur_etched"),
-                price_data.get("tix"),
+                prices.get("usd"),
+                prices.get("usd_foil"),
+                prices.get("usd_etched"),
+                prices.get("eur"),
+                prices.get("eur_foil"),
+                prices.get("eur_etched"),
+                prices.get("tix"),
             ),
         )
         updated += 1
-
-        if idx % 100 == 0:
-            conn.commit()
-            print(f"price progress: {idx}/{len(oracle_ids)}")
-
-        time.sleep(sleep_seconds)
 
     fx_rate = fetch_usd_sek_rate()
     if fx_rate is not None:
@@ -395,20 +396,24 @@ def main() -> None:
     parser.add_argument("--skip-fetch", action="store_true", help="Skip cards.json fetch and reuse existing cards.json")
     parser.add_argument("--skip-tagger", action="store_true", help="Skip tagger tags during card fetch")
     parser.add_argument("--pretty", action="store_true", help="Write pretty cards.json during card fetch")
+    parser.add_argument("--max-cards", type=int, default=DEFAULT_MAX_CARDS, help=f"Max cards to fetch from Scryfall (default: {DEFAULT_MAX_CARDS})")
+    parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
     parser.add_argument("--oracle-sleep", type=float, default=DEFAULT_FETCH_SLEEP, help="Delay between fallback oracle lookup requests")
-    parser.add_argument("--price-sleep", type=float, default=DEFAULT_PRICE_SLEEP, help="Delay between price requests")
     args = parser.parse_args()
 
     started = time.time()
 
     if not args.skip_fetch:
-        run_cards_fetch(skip_tagger=args.skip_tagger, pretty=args.pretty)
+        run_cards_fetch(skip_tagger=args.skip_tagger, pretty=args.pretty, max_cards=args.max_cards, refresh_bulk=args.refresh_bulk)
     else:
         print("[1/4] Skipped cards fetch (--skip-fetch)")
 
     card_rows = rebuild_cards_table(CARDS_JSON, DB_FILE)
     backfilled = ensure_oracle_ids(DB_FILE, CARDS_JSON, args.oracle_sleep)
-    total_oracle, updated, skipped = rebuild_prices(DB_FILE, args.price_sleep)
+    try:
+        total_oracle, updated, skipped = rebuild_prices(DB_FILE, refresh_bulk=args.refresh_bulk)
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
     elapsed = time.time() - started
     print("\nRefresh complete")

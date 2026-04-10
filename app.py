@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Path to the SQLite database file
 DB_FILE = Path(os.environ.get("CARDSITE_DB", BASE_DIR / "cards.db"))
+DB_CACHE_SIGNATURE = None
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -31,6 +32,21 @@ app.logger.setLevel(logging.DEBUG)
 # Get DB connection
 def get_db():
     return sqlite3.connect(DB_FILE)
+
+def current_db_signature():
+    if not DB_FILE.exists():
+        return None
+    stat = DB_FILE.stat()
+    return (stat.st_mtime_ns, stat.st_size)
+
+def ensure_db_cache_fresh():
+    global DB_CACHE_SIGNATURE
+    signature = current_db_signature()
+    if signature != DB_CACHE_SIGNATURE:
+        load_cards.cache_clear()
+        load_prices.cache_clear()
+        load_fx.cache_clear()
+        DB_CACHE_SIGNATURE = signature
 
 def parse_json_array(value):
     if isinstance(value, list):
@@ -150,6 +166,7 @@ def card_key(card):
 
 ## Merge cards data with prices and forex rates
 def merged_payload():
+    ensure_db_cache_fresh()
     cards = load_cards()
     prices = load_prices()
     fx_rate = load_fx()
