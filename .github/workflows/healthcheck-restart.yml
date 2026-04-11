@@ -1,0 +1,36 @@
+name: Healthcheck and Auto-Restart Flask
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check website health
+        id: health
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://notsocoolcard.qzz.io/ --connect-timeout 5 --max-time 10)
+          echo "response_code=$RESPONSE" >> $GITHUB_OUTPUT
+          if [ "$RESPONSE" != "200" ]; then
+            echo "Website returned status $RESPONSE - triggering restart"
+            exit 1
+          fi
+        continue-on-error: true
+
+      - name: Restart Flask on VM via SSH
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_PORT }}
+          script: |
+            echo "Restarting Flask service..."
+            systemctl restart notsocoolcard || sudo systemctl restart notsocoolcard
+            sleep 3
+            curl -s http://localhost:5000 > /dev/null && echo "Flask restarted successfully" || echo "Flask restart may have failed"
