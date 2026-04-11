@@ -13,6 +13,7 @@ Usage:
 """
 
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor
 
 import argparse
 import json
@@ -361,6 +362,7 @@ def fetch_bulk_prices_by_oracle_id(refresh_bulk: bool = False) -> dict:
     return {oid: data[1] for oid, data in best.items()}
 
 
+
 def rebuild_prices(db_path: Path, refresh_bulk: bool = False) -> tuple[int, int, int]:
     print("[4/4] Rebuilding prices table...")
     conn = sqlite3.connect(db_path)
@@ -368,25 +370,26 @@ def rebuild_prices(db_path: Path, refresh_bulk: bool = False) -> tuple[int, int,
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM prices")
-
     cursor.execute("SELECT DISTINCT oracle_id FROM cards WHERE oracle_id IS NOT NULL AND oracle_id != ''")
     oracle_ids = [row[0] for row in cursor.fetchall()]
 
-    price_map = fetch_bulk_prices_by_oracle_id(refresh_bulk=refresh_bulk)
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        price_future = ex.submit(fetch_bulk_prices_by_oracle_id, refresh_bulk)
+        fx_future = ex.submit(fetch_usd_sek_rate)
 
+        price_map = price_future.result()
+        fx_rate = fx_future.result()
+
+    price_rows = []
     updated = 0
     skipped = 0
-    CI = os.environ.get("CI", "").lower() in ("true", "1", "yes")
-    for oracle_id in tqdm(oracle_ids, desc="Prices", unit="card", file=sys.stdout, dynamic_ncols=not CI, mininterval=5 if CI else 0.1):
+
+    for oracle_id in oracle_ids:
         prices = price_map.get(oracle_id)
         if not prices:
             skipped += 1
             continue
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO prices (key, usd, usd_foil, usd_etched, eur, eur_foil, eur_etched, tix)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+        price_rows.append(
             (
                 oracle_id,
                 prices.get("usd"),
@@ -396,25 +399,36 @@ def rebuild_prices(db_path: Path, refresh_bulk: bool = False) -> tuple[int, int,
                 prices.get("eur_foil"),
                 prices.get("eur_etched"),
                 prices.get("tix"),
-            ),
+            )
         )
         updated += 1
 
-    fx_rate = fetch_usd_sek_rate()
+    cursor.executemany(
+        """
+        INSERT OR REPLACE INTO prices (key, usd, usd_foil, usd_etched, eur, eur_foil, eur_etched, tix)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        price_rows,
+    )
+
     if fx_rate is not None:
-        cursor.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ("usd_sek", str(fx_rate)))
+        cursor.execute(
+            'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+            ("usd_sek", str(fx_rate)),
+        )
 
     cursor.execute(
         'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
         ("updated_at", datetime.now(timezone.utc).isoformat()),
     )
-    cursor.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ("card_count", str(len(oracle_ids))))
+    cursor.execute(
+        'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+        ("card_count", str(len(oracle_ids))),
+    )
 
     conn.commit()
     conn.close()
     return len(oracle_ids), updated, skipped
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="End-to-end cards.db refresh")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip cards.json fetch and reuse existing cards.json")

@@ -37615,5 +37615,27 @@
   ],
   "dgm:21": [
     "alliteration"
+  ],
+  "soa:181": [
+    "full refund",
+    "tutor-land-to-battlefield",
+    "tutor-land-any",
+    "sacrifice outlet-land"
+  ],
+  "soa:162": [
+    "modal inverse choices",
+    "hate-token",
+    "removal-planeswalker",
+    "charm"
+  ],
+  "soa:101": [
+    "single target instant/sorcery",
+    "single english word name",
+    "reanimate-creature"
+  ],
+  "soa:108": [
+    "multiple bodies",
+    "cast trigger-self",
+    "copy-self"
   ]
 }
