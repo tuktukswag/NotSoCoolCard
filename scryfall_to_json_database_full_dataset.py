@@ -7,7 +7,9 @@ import os
 import re
 import sys
 import time
+import threading
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html import unescape
 from urllib.parse import parse_qs, quote_plus, urlparse
@@ -35,8 +37,12 @@ CACHE_DIR = ".cache"
 EDHREC_CACHE_FILE = os.path.join(CACHE_DIR, "edhrec_inclusion_cache.json")
 TAGGER_CACHE_FILE = os.path.join(CACHE_DIR, "tagger_tags_cache.json")
 
+_thread_local = threading.local()
+
+
 def ensure_cache_dir():
     os.makedirs(CACHE_DIR, exist_ok=True)
+
 
 def load_json_cache(path):
     if os.path.exists(path):
@@ -47,35 +53,55 @@ def load_json_cache(path):
             return {}
     return {}
 
+
 def save_json_cache(path, data):
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
 
+
+def get_session():
+    session = getattr(_thread_local, "session", None)
+    if session is None:
+        session = requests.Session()
+        _thread_local.session = session
+    return session
+
+
 def safe_get(url, params=None, headers=None, timeout=30, retries=5, pause_429=3.0, stream=False, request_label=None):
     merged_headers = dict(BROWSER_HEADERS)
     if headers:
         merged_headers.update(headers)
+
+    session = get_session()
+
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, headers=merged_headers, timeout=timeout, stream=stream)
+            r = session.get(url, params=params, headers=merged_headers, timeout=timeout, stream=stream)
             if r.status_code == 404:
                 return None
             if r.status_code == 429:
                 if request_label:
-                    print(f"  {request_label}: rate limited, retry {attempt + 1}/{retries} in {pause_429 * (attempt + 1):.1f}s", flush=True)
+                    print(
+                        f"  {request_label}: rate limited, retry {attempt + 1}/{retries} in {pause_429 * (attempt + 1):.1f}s",
+                        flush=True,
+                    )
                 time.sleep(pause_429 * (attempt + 1))
                 continue
             r.raise_for_status()
             return r
         except requests.exceptions.RequestException as exc:
             if request_label:
-                print(f"  {request_label}: retry {attempt + 1}/{retries} after {type(exc).__name__} in {1.5 * (attempt + 1):.1f}s", flush=True)
+                print(
+                    f"  {request_label}: retry {attempt + 1}/{retries} after {type(exc).__name__} in {1.5 * (attempt + 1):.1f}s",
+                    flush=True,
+                )
             if attempt == retries - 1:
                 return None
             time.sleep(1.5 * (attempt + 1))
     return None
+
 
 def get_image_url(card):
     if card.get("image_uris"):
@@ -85,6 +111,7 @@ def get_image_url(card):
             if face.get("image_uris"):
                 return face["image_uris"].get("normal")
     return None
+
 
 def get_back_image_url(card, front_url=None):
     # Prefer explicit second-face image for transform/modal double-faced cards.
@@ -101,31 +128,31 @@ def get_back_image_url(card, front_url=None):
 
     return None
 
+
 def _slugify_edhrec_name(name):
     text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode("ascii")
     text = text.split(" // ", 1)[0].lower()
-    text = re.sub(r"['\u2019`]", "", text)  # drop apostrophes; EDHREC omits them (builder's -> builders)
+    text = re.sub(r"['\u2019`]", "", text)  # EDHREC drops apostrophes
     text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return text
 
+
 def _needs_edhrec_route_lookup(name):
-    # Route URLs are more reliable for names with symbols and formatted numerics (e.g. +2, 1,000).
+    # Route URLs are more reliable for names with symbols and formatted numerics.
     return bool(re.search(r"[_.:,\+]|\d", str(name or "")))
+
 
 def normalize_edhrec_card_url(card, route_special_names=False):
     edhrec_url = card.get("related_uris", {}).get("edhrec")
     if not edhrec_url:
         return None
 
-    # Already a card page.
     if "/cards/" in edhrec_url:
         return edhrec_url
 
-    # Commander pages should always be mapped to the card page for inclusion %.
     if "/commanders/" in edhrec_url:
         return edhrec_url.replace("/commanders/", "/cards/", 1)
 
-    # Scryfall often provides route links like /route/?cc=Card+Name.
     parsed = urlparse(edhrec_url)
     if "/route/" in parsed.path:
         cc_value = parse_qs(parsed.query).get("cc", [""])[0]
@@ -136,7 +163,6 @@ def normalize_edhrec_card_url(card, route_special_names=False):
         if slug:
             return f"https://edhrec.com/cards/{slug}"
 
-    # Final fallback from card name.
     card_name = card.get("name")
     if route_special_names and _needs_edhrec_route_lookup(card_name):
         return f"https://edhrec.com/route/?cc={quote_plus(str(card_name))}"
@@ -145,11 +171,223 @@ def normalize_edhrec_card_url(card, route_special_names=False):
         return f"https://edhrec.com/cards/{slug}"
     return edhrec_url
 
+
+def edhrec_json_url_from_card_url(edhrec_url):
+    if not edhrec_url:
+        return None
+
+    parsed = urlparse(edhrec_url)
+
+    if "/route/" in parsed.path:
+        cc_value = parse_qs(parsed.query).get("cc", [""])[0]
+        if not cc_value:
+            return None
+        slug = _slugify_edhrec_name(cc_value)
+        if slug:
+            return f"https://json.edhrec.com/pages/cards/{slug}.json"
+        return None
+
+    match = re.search(r"/cards/([^/?#]+)", parsed.path)
+    if match:
+        slug = match.group(1).strip().lower()
+        if slug:
+            return f"https://json.edhrec.com/pages/cards/{slug}.json"
+
+    return None
+
+
+def _coerce_percent(value):
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        match = re.match(r"^\s*(\d+(?:\.\d+)?)\s*%\s*$", value)
+        if match:
+            return float(match.group(1))
+        try:
+            num = float(value)
+        except ValueError:
+            return None
+    elif isinstance(value, (int, float)):
+        num = float(value)
+    else:
+        return None
+
+    if 0.0 <= num <= 1.0:
+        return round(num * 100, 4)
+    if 0.0 <= num <= 100.0:
+        return num
+    return None
+
+
+def _find_first_numeric_field(obj, wanted_keys):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_lower = str(key).lower()
+            if key_lower in wanted_keys:
+                pct = _coerce_percent(value)
+                if pct is not None:
+                    return pct
+            found = _find_first_numeric_field(value, wanted_keys)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_first_numeric_field(item, wanted_keys)
+            if found is not None:
+                return found
+    return None
+
+
+def extract_inclusion_from_edhrec_json(data):
+    direct_candidates = [
+        data.get("card", {}).get("inclusion"),
+        data.get("container", {}).get("json_dict", {}).get("card", {}).get("inclusion"),
+        data.get("container", {}).get("card", {}).get("inclusion"),
+        data.get("inclusion"),
+    ]
+
+    for value in direct_candidates:
+        pct = _coerce_percent(value)
+        if pct is not None:
+            return pct
+
+    possible_card_objs = [
+        data.get("card", {}),
+        data.get("container", {}).get("json_dict", {}).get("card", {}),
+        data.get("container", {}).get("card", {}),
+        data,
+    ]
+
+    for obj in possible_card_objs:
+        if not isinstance(obj, dict):
+            continue
+
+        num_decks = obj.get("num_decks")
+        potential_decks = obj.get("potential_decks")
+        if isinstance(num_decks, (int, float)) and isinstance(potential_decks, (int, float)) and potential_decks:
+            return round((float(num_decks) / float(potential_decks)) * 100.0, 4)
+
+    found = _find_first_numeric_field(
+        data,
+        wanted_keys={"inclusion", "inclusion_pct", "percent", "percentage"},
+    )
+    if found is not None:
+        return found
+
+    return None
+
+
+def get_inclusion(edhrec_url, edhrec_cache, cache_lock):
+    json_url = edhrec_json_url_from_card_url(edhrec_url)
+    if not json_url:
+        return None
+
+    with cache_lock:
+        cached = edhrec_cache.get(json_url, None)
+        if json_url in edhrec_cache:
+            return cached
+
+    r = safe_get(
+        json_url,
+        headers={"Accept": "application/json"},
+        request_label=json_url,
+    )
+    if not r:
+        with cache_lock:
+            edhrec_cache[json_url] = None
+        return None
+
+    try:
+        data = r.json()
+    except ValueError:
+        with cache_lock:
+            edhrec_cache[json_url] = None
+        return None
+
+    value = extract_inclusion_from_edhrec_json(data)
+    with cache_lock:
+        edhrec_cache[json_url] = value
+    return value
+
+
+def _parse_tags_from_description(description_text):
+    if not description_text:
+        return []
+    text = unescape(description_text)
+    text = re.sub(r"\s+", " ", text).strip()
+    match = re.search(r"Card Tags:\s*(.+?)(?:$|Art Tags:|Illustration Tags:)", text, re.IGNORECASE)
+    if not match:
+        return []
+    segment = match.group(1).strip()
+    parts = [p.strip(" •,;") for p in re.split(r"•|\||, (?=[a-zA-Z])", segment) if p.strip(" •,;")]
+    cleaned = []
+    seen = set()
+    for p in parts:
+        p = re.sub(r"\s+", " ", p).strip(" •,;")
+        low = p.lower()
+        if p and low not in seen and not low.startswith("and "):
+            seen.add(low)
+            cleaned.append(p)
+    return cleaned
+
+
+def get_tagger_tags(card, tagger_cache, cache_lock):
+    set_code = card.get("set")
+    collector_number = card.get("collector_number")
+    if not set_code or not collector_number:
+        return []
+
+    cache_key = f"{set_code}:{collector_number}"
+    with cache_lock:
+        cached = tagger_cache.get(cache_key, None)
+        if cache_key in tagger_cache:
+            return cached
+
+    tagger_url = f"https://tagger.scryfall.com/card/{set_code}/{collector_number}"
+    r = safe_get(tagger_url, request_label=cache_key)
+    if not r:
+        with cache_lock:
+            tagger_cache[cache_key] = []
+        return []
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    tags = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/tags/card/" in href:
+            txt = unescape(a.get_text(" ", strip=True)).strip()
+            if txt:
+                tags.append(txt)
+
+    if not tags:
+        for meta in soup.find_all("meta"):
+            content = meta.get("content")
+            if content:
+                parsed = _parse_tags_from_description(content)
+                if parsed:
+                    tags.extend(parsed)
+
+    cleaned = []
+    seen = set()
+    for tag in tags:
+        tag = re.sub(r"\s+", " ", tag).strip(" •,;")
+        low = tag.lower()
+        if tag and low not in seen:
+            seen.add(low)
+            cleaned.append(tag)
+
+    with cache_lock:
+        tagger_cache[cache_key] = cleaned
+    return cleaned
+
+
 def color_identity(card):
     colors = card.get("color_identity", [])
     order = ["W", "U", "B", "R", "G"]
     result = "".join(c for c in order if c in colors)
     return result if result else "COLORLESS"
+
 
 def scryfall_search(query, max_cards):
     url = "https://api.scryfall.com/cards/search"
@@ -177,13 +415,20 @@ def scryfall_search(query, max_cards):
     pbar.close()
     return cards[:max_cards]
 
+
 def card_matches_commander_paper(card):
     legalities = card.get("legalities") or {}
     games = card.get("games") or []
     return legalities.get("commander") == "legal" and "paper" in games
 
+
 def scryfall_bulk_commander_paper(max_cards, refresh_bulk=False):
-    all_cards = load_default_cards_bulk(base_dir=".", safe_get=safe_get, tqdm_kwargs=TQDM_KWARGS, force_refresh=refresh_bulk)
+    all_cards = load_default_cards_bulk(
+        base_dir=".",
+        safe_get=safe_get,
+        tqdm_kwargs=TQDM_KWARGS,
+        force_refresh=refresh_bulk,
+    )
     filtered = []
     with tqdm(total=len(all_cards), desc="Filtering bulk cards", unit="card", **TQDM_KWARGS) as pbar:
         for card in all_cards:
@@ -194,77 +439,6 @@ def scryfall_bulk_commander_paper(max_cards, refresh_bulk=False):
                     break
     return filtered
 
-def get_inclusion(edhrec_url, edhrec_cache):
-    if edhrec_url in edhrec_cache:
-        return edhrec_cache[edhrec_url]
-    r = safe_get(edhrec_url, headers={"User-Agent": "Mozilla/5.0"})
-    if not r:
-        edhrec_cache[edhrec_url] = None
-        return None
-    text = " ".join(BeautifulSoup(r.text, "html.parser").stripped_strings)
-    m = re.search(r"(\d+(?:\.\d+)?)%\s*inclusion", text, re.IGNORECASE)
-    value = float(m.group(1)) if m else None
-    edhrec_cache[edhrec_url] = value
-    return value
-
-def _parse_tags_from_description(description_text):
-    if not description_text:
-        return []
-    text = unescape(description_text)
-    text = re.sub(r"\s+", " ", text).strip()
-    m = re.search(r"Card Tags:\s*(.+?)(?:$|Art Tags:|Illustration Tags:)", text, re.IGNORECASE)
-    if not m:
-        return []
-    segment = m.group(1).strip()
-    parts = [p.strip(" •,;") for p in re.split(r"•|\||, (?=[a-zA-Z])", segment) if p.strip(" •,;")]
-    cleaned = []
-    seen = set()
-    for p in parts:
-        p = re.sub(r"\s+", " ", p).strip(" •,;")
-        low = p.lower()
-        if p and low not in seen and not low.startswith("and "):
-            seen.add(low)
-            cleaned.append(p)
-    return cleaned
-
-def get_tagger_tags(card, tagger_cache):
-    set_code = card.get("set")
-    collector_number = card.get("collector_number")
-    if not set_code or not collector_number:
-        return []
-    cache_key = f"{set_code}:{collector_number}"
-    if cache_key in tagger_cache:
-        return tagger_cache[cache_key]
-    tagger_url = f"https://tagger.scryfall.com/card/{set_code}/{collector_number}"
-    r = safe_get(tagger_url)
-    if not r:
-        tagger_cache[cache_key] = []
-        return []
-    soup = BeautifulSoup(r.text, "html.parser")
-    tags = []
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "/tags/card/" in href:
-            txt = unescape(a.get_text(" ", strip=True)).strip()
-            if txt:
-                tags.append(txt)
-    if not tags:
-        for meta in soup.find_all("meta"):
-            content = meta.get("content")
-            if content:
-                parsed = _parse_tags_from_description(content)
-                if parsed:
-                    tags.extend(parsed)
-    cleaned = []
-    seen = set()
-    for tag in tags:
-        tag = re.sub(r"\s+", " ", tag).strip(" •,;")
-        low = tag.lower()
-        if tag and low not in seen:
-            seen.add(low)
-            cleaned.append(tag)
-    tagger_cache[cache_key] = cleaned
-    return cleaned
 
 def fetch_cards(query, max_cards, use_bulk, refresh_bulk=False):
     if use_bulk:
@@ -276,6 +450,70 @@ def fetch_cards(query, max_cards, use_bulk, refresh_bulk=False):
         except RuntimeError as exc:
             print(f"Bulk fetch failed, falling back to search API: {exc}", flush=True)
     return scryfall_search(query, max_cards)
+
+
+def build_unique_cards(cards):
+    unique_cards = []
+    seen_oracle_ids = set()
+
+    for card in cards:
+        type_line = str(card.get("type_line") or "")
+        if "sticker" in type_line.lower():
+            continue
+
+        oracle_id = card.get("oracle_id")
+        if not oracle_id or oracle_id in seen_oracle_ids:
+            continue
+
+        seen_oracle_ids.add(oracle_id)
+        unique_cards.append(card)
+
+    return unique_cards
+
+
+def process_card(card, args, edhrec_cache, tagger_cache, edhrec_cache_lock, tagger_cache_lock):
+    inclusion_url = normalize_edhrec_card_url(
+        card,
+        route_special_names=args.edhrec_route_special_names,
+    )
+    inclusion_pct = get_inclusion(inclusion_url, edhrec_cache, edhrec_cache_lock) if inclusion_url else None
+
+    if not args.full_dataset and (inclusion_pct is None or inclusion_pct >= args.threshold):
+        return None, inclusion_pct is not None, False
+
+    tags = []
+    if not args.skip_tagger:
+        tags = get_tagger_tags(card, tagger_cache, tagger_cache_lock)
+
+    front_image_url = get_image_url(card)
+    back_image_url = get_back_image_url(card, front_image_url)
+
+    result = {
+        "name": card.get("name"),
+        "oracle_id": card.get("oracle_id"),
+        "scryfall_id": card.get("id"),
+        "set": card.get("set"),
+        "collector_number": card.get("collector_number"),
+        "include_pct": inclusion_pct,
+        "edhrec_found": inclusion_pct is not None,
+        "card_type": card.get("type_line"),
+        "mana_cost": card.get("mana_cost"),
+        "cmc": card.get("cmc"),
+        "edhrec_rank": card.get("edhrec_rank"),
+        "edhrec_link": inclusion_url,
+        "scryfall_link": card.get("scryfall_uri"),
+        "image_url": front_image_url,
+        "back_image_url": back_image_url,
+        "color": color_identity(card),
+        "color_identity": card.get("color_identity", []),
+        "tags": tags,
+        "keywords": card.get("keywords", []),
+        "games": card.get("games", []),
+        "legalities": card.get("legalities", {}),
+    }
+
+    return result, inclusion_pct is not None, bool(tags)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -289,6 +527,7 @@ def main():
     parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
     parser.add_argument("--full-dataset", action="store_true", help="Keep all cards, even if include_pct is null or above threshold")
     parser.add_argument("--edhrec-route-special-names", action="store_true", help="For names containing _, :, ., + or digits, use EDHREC route URL instead of card slug")
+    parser.add_argument("--workers", type=int, default=8, help="Number of concurrent workers for EDHREC/Tagger fetches")
     args = parser.parse_args()
 
     ensure_cache_dir()
@@ -299,78 +538,61 @@ def main():
     cards = fetch_cards(args.query, args.max_cards, args.use_bulk, refresh_bulk=args.refresh_bulk)
     print(f"Fetched {len(cards)} cards from Scryfall")
 
-    seen_oracle_ids = set()
-    results = []
+    unique_cards = build_unique_cards(cards)
+    print(f"Processing {len(unique_cards)} unique cards for EDHREC / Tagger...", flush=True)
 
-    total_cards = len(cards)
+    results = []
     edhrec_hits = 0
     tagger_hits = 0
     loop_start = time.time()
-    print(f"Processing {total_cards} cards for EDHREC / Tagger...", flush=True)
-    for idx, card in enumerate(tqdm(cards, desc="Processing cards", unit="card", **TQDM_KWARGS), start=1):
-        type_line = str(card.get("type_line") or "")
-        if "sticker" in type_line.lower():
-            continue
 
-        oracle_id = card.get("oracle_id")
-        if oracle_id in seen_oracle_ids:
-            continue
-        seen_oracle_ids.add(oracle_id)
+    edhrec_cache_lock = threading.Lock()
+    tagger_cache_lock = threading.Lock()
 
-        inclusion_url = normalize_edhrec_card_url(card, route_special_names=args.edhrec_route_special_names)
-        inclusion_pct = get_inclusion(inclusion_url, edhrec_cache) if inclusion_url else None
-        if inclusion_pct is not None:
-            edhrec_hits += 1
+    max_workers = max(1, args.workers)
 
-        if not args.full_dataset and (inclusion_pct is None or inclusion_pct >= args.threshold):
-            continue
-
-        tags = [] if args.skip_tagger else get_tagger_tags(card, tagger_cache)
-        if tags:
-            tagger_hits += 1
-
-        front_image_url = get_image_url(card)
-        back_image_url = get_back_image_url(card, front_image_url)
-
-        results.append({
-            "name": card.get("name"),
-            "oracle_id": oracle_id,
-            "scryfall_id": card.get("id"),
-            "set": card.get("set"),
-            "collector_number": card.get("collector_number"),
-            "include_pct": inclusion_pct,
-            "edhrec_found": inclusion_pct is not None,
-            "card_type": card.get("type_line"),
-            "mana_cost": card.get("mana_cost"),
-            "cmc": card.get("cmc"),
-            "edhrec_rank": card.get("edhrec_rank"),
-            "edhrec_link": inclusion_url,
-            "scryfall_link": card.get("scryfall_uri"),
-            "image_url": front_image_url,
-            "back_image_url": back_image_url,
-            "color": color_identity(card),
-            "color_identity": card.get("color_identity", []),
-            "tags": tags,
-            "keywords": card.get("keywords", []),
-            "games": card.get("games", []),
-            "legalities": card.get("legalities", {}),
-        })
-
-        if idx % 250 == 0:
-            save_json_cache(EDHREC_CACHE_FILE, edhrec_cache)
-            save_json_cache(TAGGER_CACHE_FILE, tagger_cache)
-
-        if idx % 500 == 0 or idx == total_cards:
-            elapsed = time.time() - loop_start
-            rate = idx / elapsed if elapsed > 0 else 0
-            eta = (total_cards - idx) / rate if rate > 0 else 0
-            print(
-                f"[{idx}/{total_cards}] "
-                f"EDHREC: {edhrec_hits} hits | "
-                f"Tagger: {tagger_hits} with tags | "
-                f"elapsed: {elapsed/60:.1f}m | ETA: {eta/60:.1f}m",
-                flush=True,
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(
+                process_card,
+                card,
+                args,
+                edhrec_cache,
+                tagger_cache,
+                edhrec_cache_lock,
+                tagger_cache_lock,
             )
+            for card in unique_cards
+        ]
+
+        for idx, future in enumerate(
+            tqdm(as_completed(futures), total=len(futures), desc="Processing cards", unit="card", **TQDM_KWARGS),
+            start=1,
+        ):
+            result, edhrec_hit, tagger_hit = future.result()
+
+            if edhrec_hit:
+                edhrec_hits += 1
+            if tagger_hit:
+                tagger_hits += 1
+            if result is not None:
+                results.append(result)
+
+            if idx % 1000 == 0:
+                save_json_cache(EDHREC_CACHE_FILE, edhrec_cache)
+                save_json_cache(TAGGER_CACHE_FILE, tagger_cache)
+
+            if idx % 500 == 0 or idx == len(futures):
+                elapsed = time.time() - loop_start
+                rate = idx / elapsed if elapsed > 0 else 0
+                eta = (len(futures) - idx) / rate if rate > 0 else 0
+                print(
+                    f"[{idx}/{len(futures)}] "
+                    f"EDHREC: {edhrec_hits} hits | "
+                    f"Tagger: {tagger_hits} with tags | "
+                    f"elapsed: {elapsed/60:.1f}m | ETA: {eta/60:.1f}m",
+                    flush=True,
+                )
 
     results.sort(key=lambda x: ((x["include_pct"] is None), -(x["include_pct"] or -1), x["name"].lower()))
 
@@ -385,6 +607,7 @@ def main():
             "includes_tagger_tags": not args.skip_tagger,
             "full_dataset": args.full_dataset,
             "used_bulk": args.use_bulk,
+            "workers": max_workers,
         },
         "cards": results,
     }
@@ -399,6 +622,7 @@ def main():
     save_json_cache(EDHREC_CACHE_FILE, edhrec_cache)
     save_json_cache(TAGGER_CACHE_FILE, tagger_cache)
     print("Done")
+
 
 if __name__ == "__main__":
     main()
