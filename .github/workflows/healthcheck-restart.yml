@@ -92,17 +92,42 @@ jobs:
           script: |
             set -e
             SUDO="sudo -n"
-            if ! $SUDO systemctl is-active ${{ env.APP_SERVICE }} >/dev/null 2>&1; then
-              echo "Passwordless sudo is required for automated restart. Configure sudoers for $USER."
-              echo "Example: $USER ALL=(root) NOPASSWD:/bin/systemctl restart ${{ env.APP_SERVICE }},/bin/systemctl restart ${{ env.WEB_SERVICE }},/bin/systemctl status ${{ env.APP_SERVICE }},/bin/systemctl status ${{ env.WEB_SERVICE }}"
+            SYSTEMCTL_BIN="$(command -v systemctl || true)"
+            echo "Detected systemctl at: ${SYSTEMCTL_BIN:-not found}"
+
+            restart_service() {
+              svc="$1"
+              echo "Restarting service: $svc"
+              if $SUDO /usr/bin/systemctl restart "$svc" >/dev/null 2>&1; then
+                echo "Restarted via /usr/bin/systemctl"
+                return 0
+              fi
+              if $SUDO /bin/systemctl restart "$svc" >/dev/null 2>&1; then
+                echo "Restarted via /bin/systemctl"
+                return 0
+              fi
+              if [ -n "$SYSTEMCTL_BIN" ] && $SUDO "$SYSTEMCTL_BIN" restart "$svc" >/dev/null 2>&1; then
+                echo "Restarted via detected systemctl path"
+                return 0
+              fi
+              echo "Failed to restart $svc with passwordless sudo"
+              return 1
+            }
+
+            if ! restart_service "${{ env.APP_SERVICE }}"; then
+              echo "Passwordless sudo is still not matching restart command."
+              echo "=== sudo -n -l output ==="
+              $SUDO -l || true
               exit 1
             fi
-            echo "Restarting app service: ${{ env.APP_SERVICE }}"
-            $SUDO systemctl restart ${{ env.APP_SERVICE }}
-            echo "Restarting web service: ${{ env.WEB_SERVICE }}"
-            $SUDO systemctl restart ${{ env.WEB_SERVICE }}
+            if ! restart_service "${{ env.WEB_SERVICE }}"; then
+              echo "Passwordless sudo failed for web service."
+              echo "=== sudo -n -l output ==="
+              $SUDO -l || true
+              exit 1
+            fi
             echo "Restarting tunnel service (if present): ${{ env.TUNNEL_SERVICE }}"
-            $SUDO systemctl restart ${{ env.TUNNEL_SERVICE }} || true
+            restart_service "${{ env.TUNNEL_SERVICE }}" || true
             sleep 5
             echo "Post-restart service state"
             $SUDO systemctl --no-pager --full status ${{ env.APP_SERVICE }} | tail -n 60
