@@ -9,20 +9,41 @@ on:
 jobs:
   healthcheck:
     runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://notsocoolcard.qzz.io/
+      APP_SERVICE: notsocoolcard
+      WEB_SERVICE: nginx
     steps:
       - name: Check website health
         id: health
         run: |
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://notsocoolcard.qzz.io/ --connect-timeout 5 --max-time 10)
-          echo "response_code=$RESPONSE" >> $GITHUB_OUTPUT
-          if [ "$RESPONSE" != "200" ]; then
-            echo "Website returned status $RESPONSE - triggering restart"
-            exit 1
-          fi
-        continue-on-error: true
+          set +e
+          RESPONSE=$(curl -sS -L -o /dev/null -w "%{http_code}" "$SITE_URL" --connect-timeout 5 --max-time 15)
+          CURL_EXIT=$?
+          set -e
 
-      - name: Restart Flask on VM via SSH
-        if: steps.health.outcome == 'failure' || github.event_name == 'workflow_dispatch'
+          echo "response_code=$RESPONSE" >> $GITHUB_OUTPUT
+          echo "curl_exit=$CURL_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$CURL_EXIT" -ne 0 ] || [ "$RESPONSE" != "200" ]; then
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "Website unhealthy (curl_exit=$CURL_EXIT, status=$RESPONSE) - triggering restart"
+          else
+            echo "healthy=true" >> $GITHUB_OUTPUT
+            echo "Website healthy (status=$RESPONSE)"
+          fi
+
+      - name: Capture public response diagnostics
+        if: steps.health.outputs.healthy == 'false'
+        run: |
+          echo "=== Public headers ==="
+          curl -sS -L -D - -o /dev/null "$SITE_URL" --connect-timeout 5 --max-time 15 || true
+          echo
+          echo "=== Public body sample (first 120 lines) ==="
+          curl -sS -L "$SITE_URL" --connect-timeout 5 --max-time 15 | sed -n '1,120p' || true
+
+      - name: Collect VM diagnostics via SSH
+        if: steps.health.outputs.healthy == 'false'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VM_HOST }}
@@ -30,7 +51,68 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_PORT }}
           script: |
-            echo "Restarting Flask service..."
-            systemctl restart notsocoolcard || sudo systemctl restart notsocoolcard
-            sleep 3
-            curl -s http://localhost:5000 > /dev/null && echo "Flask restarted successfully" || echo "Flask restart may have failed"
+            set +e
+            echo "=== VM baseline ==="
+            date
+            uptime
+            whoami
+            echo
+            echo "=== Service status ==="
+            sudo systemctl is-active ${{ env.APP_SERVICE }} || true
+            sudo systemctl status ${{ env.APP_SERVICE }} --no-pager -l | tail -n 80 || true
+            sudo systemctl is-active ${{ env.WEB_SERVICE }} || true
+            sudo systemctl status ${{ env.WEB_SERVICE }} --no-pager -l | tail -n 80 || true
+            echo
+            echo "=== Recent logs ==="
+            sudo journalctl -u ${{ env.APP_SERVICE }} -n 120 --no-pager || true
+            sudo journalctl -u ${{ env.WEB_SERVICE }} -n 120 --no-pager || true
+            echo
+            echo "=== Ports / resources ==="
+            sudo ss -lntp | grep -E ':80 |:443 |:5000 ' || true
+            df -h || true
+            free -m || true
+
+      - name: Restart Flask on VM via SSH
+        if: steps.health.outputs.healthy == 'false' || github.event_name == 'workflow_dispatch'
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_PORT }}
+          script: |
+            set -e
+            echo "Restarting app service: ${{ env.APP_SERVICE }}"
+            sudo systemctl restart ${{ env.APP_SERVICE }}
+            echo "Restarting web service: ${{ env.WEB_SERVICE }}"
+            sudo systemctl restart ${{ env.WEB_SERVICE }}
+            sleep 5
+            echo "Post-restart service state"
+            sudo systemctl --no-pager --full status ${{ env.APP_SERVICE }} | tail -n 60
+            sudo systemctl --no-pager --full status ${{ env.WEB_SERVICE }} | tail -n 60
+            curl -sS http://127.0.0.1:5000/ -o /dev/null && echo "Local app endpoint reachable" || echo "Local app endpoint check failed"
+
+      - name: Verify website health after restart/check
+        run: |
+          ATTEMPTS=3
+          DELAY=10
+          for i in $(seq 1 $ATTEMPTS); do
+            set +e
+            RESPONSE=$(curl -sS -L -o /dev/null -w "%{http_code}" "$SITE_URL" --connect-timeout 5 --max-time 15)
+            CURL_EXIT=$?
+            set -e
+
+            echo "Post-check attempt $i/$ATTEMPTS: status=$RESPONSE, curl_exit=$CURL_EXIT"
+            if [ "$CURL_EXIT" -eq 0 ] && [ "$RESPONSE" = "200" ]; then
+              echo "Website healthy"
+              exit 0
+            fi
+
+            if [ "$i" -lt "$ATTEMPTS" ]; then
+              echo "Still unhealthy, waiting ${DELAY}s before retry..."
+              sleep "$DELAY"
+            fi
+          done
+
+          echo "Website is still down after restart/check retries"
+          exit 1
