@@ -52,23 +52,24 @@ jobs:
           port: ${{ secrets.VM_PORT }}
           script: |
             set +e
+            SUDO="sudo -n"
             echo "=== VM baseline ==="
             date
             uptime
             whoami
             echo
             echo "=== Service status ==="
-            sudo systemctl is-active ${{ env.APP_SERVICE }} || true
-            sudo systemctl status ${{ env.APP_SERVICE }} --no-pager -l | tail -n 80 || true
-            sudo systemctl is-active ${{ env.WEB_SERVICE }} || true
-            sudo systemctl status ${{ env.WEB_SERVICE }} --no-pager -l | tail -n 80 || true
+            $SUDO systemctl is-active ${{ env.APP_SERVICE }} || echo "Cannot read app service status without passwordless sudo"
+            $SUDO systemctl status ${{ env.APP_SERVICE }} --no-pager -l | tail -n 80 || true
+            $SUDO systemctl is-active ${{ env.WEB_SERVICE }} || echo "Cannot read web service status without passwordless sudo"
+            $SUDO systemctl status ${{ env.WEB_SERVICE }} --no-pager -l | tail -n 80 || true
             echo
             echo "=== Recent logs ==="
-            sudo journalctl -u ${{ env.APP_SERVICE }} -n 120 --no-pager || true
-            sudo journalctl -u ${{ env.WEB_SERVICE }} -n 120 --no-pager || true
+            $SUDO journalctl -u ${{ env.APP_SERVICE }} -n 120 --no-pager || true
+            $SUDO journalctl -u ${{ env.WEB_SERVICE }} -n 120 --no-pager || true
             echo
             echo "=== Ports / resources ==="
-            sudo ss -lntp | grep -E ':80 |:443 |:5000 ' || true
+            $SUDO ss -lntp | grep -E ':80 |:443 |:5000 ' || ss -lnt | grep -E ':80 |:443 |:5000 ' || true
             df -h || true
             free -m || true
 
@@ -82,14 +83,20 @@ jobs:
           port: ${{ secrets.VM_PORT }}
           script: |
             set -e
+            SUDO="sudo -n"
+            if ! $SUDO -v >/dev/null 2>&1; then
+              echo "Passwordless sudo is required for automated restart. Configure sudoers for $USER."
+              echo "Example: $USER ALL=(root) NOPASSWD:/bin/systemctl restart ${{ env.APP_SERVICE }},/bin/systemctl restart ${{ env.WEB_SERVICE }},/bin/systemctl status ${{ env.APP_SERVICE }},/bin/systemctl status ${{ env.WEB_SERVICE }}"
+              exit 1
+            fi
             echo "Restarting app service: ${{ env.APP_SERVICE }}"
-            sudo systemctl restart ${{ env.APP_SERVICE }}
+            $SUDO systemctl restart ${{ env.APP_SERVICE }}
             echo "Restarting web service: ${{ env.WEB_SERVICE }}"
-            sudo systemctl restart ${{ env.WEB_SERVICE }}
+            $SUDO systemctl restart ${{ env.WEB_SERVICE }}
             sleep 5
             echo "Post-restart service state"
-            sudo systemctl --no-pager --full status ${{ env.APP_SERVICE }} | tail -n 60
-            sudo systemctl --no-pager --full status ${{ env.WEB_SERVICE }} | tail -n 60
+            $SUDO systemctl --no-pager --full status ${{ env.APP_SERVICE }} | tail -n 60
+            $SUDO systemctl --no-pager --full status ${{ env.WEB_SERVICE }} | tail -n 60
             curl -sS http://127.0.0.1:5000/ -o /dev/null && echo "Local app endpoint reachable" || echo "Local app endpoint check failed"
 
       - name: Verify website health after restart/check
