@@ -84,7 +84,7 @@ jobs:
           script: |
             set -e
             SUDO="sudo -n"
-            if ! $SUDO -v >/dev/null 2>&1; then
+            if ! $SUDO systemctl is-active ${{ env.APP_SERVICE }} >/dev/null 2>&1; then
               echo "Passwordless sudo is required for automated restart. Configure sudoers for $USER."
               echo "Example: $USER ALL=(root) NOPASSWD:/bin/systemctl restart ${{ env.APP_SERVICE }},/bin/systemctl restart ${{ env.WEB_SERVICE }},/bin/systemctl status ${{ env.APP_SERVICE }},/bin/systemctl status ${{ env.WEB_SERVICE }}"
               exit 1
