@@ -13,6 +13,7 @@ jobs:
       SITE_URL: https://notsocoolcard.qzz.io/
       APP_SERVICE: notsocoolcard
       WEB_SERVICE: nginx
+      TUNNEL_SERVICE: cloudflared
     steps:
       - name: Check website health
         id: health
@@ -63,10 +64,17 @@ jobs:
             $SUDO systemctl status ${{ env.APP_SERVICE }} --no-pager -l | tail -n 80 || true
             $SUDO systemctl is-active ${{ env.WEB_SERVICE }} || echo "Cannot read web service status without passwordless sudo"
             $SUDO systemctl status ${{ env.WEB_SERVICE }} --no-pager -l | tail -n 80 || true
+            $SUDO systemctl is-active ${{ env.TUNNEL_SERVICE }} || echo "Tunnel service not active or not installed: ${{ env.TUNNEL_SERVICE }}"
+            $SUDO systemctl status ${{ env.TUNNEL_SERVICE }} --no-pager -l | tail -n 80 || true
             echo
             echo "=== Recent logs ==="
             $SUDO journalctl -u ${{ env.APP_SERVICE }} -n 120 --no-pager || true
             $SUDO journalctl -u ${{ env.WEB_SERVICE }} -n 120 --no-pager || true
+            $SUDO journalctl -u ${{ env.TUNNEL_SERVICE }} -n 120 --no-pager || true
+            echo
+            echo "=== Local endpoint checks ==="
+            curl -sS -o /dev/null -w "app_local_status=%{http_code}\n" http://127.0.0.1:5000/ || true
+            curl -sS -o /dev/null -w "web_local_status=%{http_code}\n" http://127.0.0.1/ || true
             echo
             echo "=== Ports / resources ==="
             $SUDO ss -lntp | grep -E ':80 |:443 |:5000 ' || ss -lnt | grep -E ':80 |:443 |:5000 ' || true
@@ -93,11 +101,15 @@ jobs:
             $SUDO systemctl restart ${{ env.APP_SERVICE }}
             echo "Restarting web service: ${{ env.WEB_SERVICE }}"
             $SUDO systemctl restart ${{ env.WEB_SERVICE }}
+            echo "Restarting tunnel service (if present): ${{ env.TUNNEL_SERVICE }}"
+            $SUDO systemctl restart ${{ env.TUNNEL_SERVICE }} || true
             sleep 5
             echo "Post-restart service state"
             $SUDO systemctl --no-pager --full status ${{ env.APP_SERVICE }} | tail -n 60
             $SUDO systemctl --no-pager --full status ${{ env.WEB_SERVICE }} | tail -n 60
-            curl -sS http://127.0.0.1:5000/ -o /dev/null && echo "Local app endpoint reachable" || echo "Local app endpoint check failed"
+            $SUDO systemctl --no-pager --full status ${{ env.TUNNEL_SERVICE }} | tail -n 60 || true
+            curl -sS -o /dev/null -w "Local app endpoint status=%{http_code}\n" http://127.0.0.1:5000/ || echo "Local app endpoint check failed"
+            curl -sS -o /dev/null -w "Local web endpoint status=%{http_code}\n" http://127.0.0.1/ || echo "Local web endpoint check failed"
 
       - name: Verify website health after restart/check
         run: |
@@ -122,4 +134,6 @@ jobs:
           done
 
           echo "Website is still down after restart/check retries"
+          echo "Hint: compare local checks in SSH logs (127.0.0.1:5000 and 127.0.0.1) vs public SITE_URL."
+          echo "If local checks are healthy but public is not, likely DNS/proxy/tunnel issue."
           exit 1
