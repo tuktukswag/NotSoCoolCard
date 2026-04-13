@@ -132,7 +132,7 @@ def _slugify_edhrec_name(name):
 
 def _needs_edhrec_route_lookup(name):
     # Route URLs are more reliable for names with symbols and formatted numerics (e.g. +2, 1,000).
-    return bool(re.search(r"[_.:,\+]|\d", str(name or "")))
+    return bool(re.search(r"[_.:\+]|\d", str(name or "")))
 
 def normalize_edhrec_card_url(card, route_special_names=False):
     edhrec_url = card.get("related_uris", {}).get("edhrec")
