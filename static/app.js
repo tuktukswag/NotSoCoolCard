@@ -22,6 +22,7 @@ const el = {
   include: document.getElementById("includeFilter"),
   price: document.getElementById("priceFilter"),
   tag: document.getElementById("tagFilter"),
+  text: document.getElementById("textFilter"),
   typeInclude: document.getElementById("typeIncludeFilter"),
   typeExclude: document.getElementById("typeExcludeFilter"),
   cmc: document.getElementById("cmcFilter"),
@@ -59,6 +60,9 @@ const el = {
 function asArray(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
 function normalizeText(v){ return String(v || "").toLowerCase().replace(/[^\w\s']/g," ").replace(/\s+/g," ").trim(); }
 function parseCommaTerms(v){ return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean); }
+function parseTextFilterTerms(v){
+  return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean);
+}
 function slugifyCardName(v){ return String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[’'`]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function buildEdhrecLink(card){
   if(card?.edhrec_link) return card.edhrec_link;
@@ -88,11 +92,16 @@ function typePassesFilter(type){ const txt = normalizeText(type); const include 
 // Check if a card matches the current filter criteria
 function cardMatches(card){
   const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).join(" | ").toLowerCase();
+  const textTerms = parseTextFilterTerms(el.text?.value);
   const includePct = Number(card.include_pct ?? Infinity), sek = sekPrice(card), commanderColors = getCommanderIdentity();
   const exactColor = getExactColorFilter();
   if(normalizeText(el.name.value) && !name.includes(normalizeText(el.name.value))) return false;
   if(exactColor && color !== exactColor) return false;
   if(normalizeText(el.tag.value) && !tags.includes(normalizeText(el.tag.value))) return false;
+  if(textTerms.length){
+    const oracleText = String(card._oracleTextNorm || "");
+    if(!textTerms.every(term => oracleText.includes(term))) return false;
+  }
   if(el.include.value !== "" && !(includePct <= Number(el.include.value))) return false;
   if(el.price.value !== "" && !(sek !== null && sek <= Number(el.price.value))) return false;
   if(!manaPassesFilter(card.cmc)) return false;
@@ -384,6 +393,9 @@ async function init(){
   const [cardsResp, symResp] = await Promise.all([fetch("/api/cards"), fetch("/api/symbology")]);
   const cardsData = await cardsResp.json(); const symData = await symResp.json();
   ALL_CARDS = Array.isArray(cardsData.cards) ? cardsData.cards : [];
+  for(const card of ALL_CARDS){
+    card._oracleTextNorm = normalizeText(card.oracle_text || "");
+  }
   CARD_LOOKUP = buildCardLookup(ALL_CARDS);
   USD_SEK_RATE = cardsData?.meta?.usd_sek_rate != null ? Number(cardsData.meta.usd_sek_rate) : null;
   SYMBOLOGY = symData?.symbols || {};
@@ -399,7 +411,7 @@ let filterTimeout;
 const debouncedFilter = () => { clearTimeout(filterTimeout); filterTimeout = setTimeout(()=>applyFilters(true), 300); };
 const immediateFilter = () => applyFilters(true);
 // Text inputs use debouncing to reduce excessive filtering
-for(const control of [el.name,el.tag,el.typeInclude,el.typeExclude]){
+for(const control of [el.name,el.tag,el.text,el.typeInclude,el.typeExclude]){
   if(!control) continue;
   control.addEventListener("input", debouncedFilter);
 }

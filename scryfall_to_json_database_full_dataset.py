@@ -48,10 +48,24 @@ def load_json_cache(path):
     return {}
 
 def save_json_cache(path, data):
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+
+    last_error = None
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(0.2 * (attempt + 1))
+
+    try:
+        os.remove(tmp)
+    except Exception:
+        pass
+    raise last_error if last_error else PermissionError(f"Could not replace cache file: {path}")
 
 def safe_get(url, params=None, headers=None, timeout=30, retries=5, pause_429=3.0, stream=False, request_label=None):
     merged_headers = dict(BROWSER_HEADERS)
@@ -100,6 +114,14 @@ def get_back_image_url(card, front_url=None):
         return front_url.replace("/front/", "/back/")
 
     return None
+
+def get_oracle_text(card):
+    text = card.get("oracle_text")
+    if text:
+        return text
+    faces = card.get("card_faces") or []
+    face_texts = [str(face.get("oracle_text") or "").strip() for face in faces if str(face.get("oracle_text") or "").strip()]
+    return " // ".join(face_texts) if face_texts else None
 
 def _slugify_edhrec_name(name):
     text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode("ascii")
@@ -284,6 +306,7 @@ def main():
     parser.add_argument("--max-cards", type=int, default=50000, help="Maximum number of Scryfall cards to fetch")
     parser.add_argument("--out", default="cards.json", help="Output JSON filename")
     parser.add_argument("--skip-tagger", action="store_true", help="Skip Scryfall Tagger tags for faster runs")
+    parser.add_argument("--skip-edhrec", action="store_true", help="Skip EDHREC inclusion lookup (sets include_pct to null)")
     parser.add_argument("--pretty", action="store_true", help="Write formatted JSON")
     parser.add_argument("--use-bulk", action="store_true", help="Use Scryfall bulk data instead of search API")
     parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
@@ -317,7 +340,7 @@ def main():
             continue
         seen_oracle_ids.add(oracle_id)
 
-        inclusion_url = normalize_edhrec_card_url(card, route_special_names=args.edhrec_route_special_names)
+        inclusion_url = None if args.skip_edhrec else normalize_edhrec_card_url(card, route_special_names=args.edhrec_route_special_names)
         inclusion_pct = get_inclusion(inclusion_url, edhrec_cache) if inclusion_url else None
         if inclusion_pct is not None:
             edhrec_hits += 1
@@ -341,6 +364,7 @@ def main():
             "include_pct": inclusion_pct,
             "edhrec_found": inclusion_pct is not None,
             "card_type": card.get("type_line"),
+            "oracle_text": get_oracle_text(card),
             "mana_cost": card.get("mana_cost"),
             "cmc": card.get("cmc"),
             "edhrec_rank": card.get("edhrec_rank"),

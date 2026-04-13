@@ -77,6 +77,7 @@ def load_cards():
 
     columns = table_columns(conn, "cards")
     oracle_expr = '"oracle_id" AS oracle_id' if "oracle_id" in columns else "NULL AS oracle_id"
+    oracle_text_expr = '"oracle_text" AS oracle_text' if "oracle_text" in columns else "NULL AS oracle_text"
     back_image_expr = '"back_image_url" AS back_image_url' if "back_image_url" in columns else "NULL AS back_image_url"
     set_expr = '"set" AS set_code' if "set" in columns else "NULL AS set_code"
     collector_expr = '"collector_number" AS collector_number' if "collector_number" in columns else "NULL AS collector_number"
@@ -88,6 +89,7 @@ def load_cards():
             {oracle_expr},
             name,
             card_type,
+            {oracle_text_expr},
             mana_cost,
             cmc,
             color,
@@ -111,17 +113,18 @@ def load_cards():
             'oracle_id': row[1],
             'name': row[2],
             'card_type': row[3],
-            'mana_cost': row[4],
-            'cmc': row[5],
-            'color': row[6],
-            'color_identity': parse_json_array(row[7]),
-            'include_pct': row[8],
-            'tags': parse_json_array(row[9]),
-            'keywords': parse_json_array(row[10]),
-            'image_url': row[11],
-            'back_image_url': row[12],
-            'set': row[13],
-            'collector_number': row[14],
+            'oracle_text': row[4],
+            'mana_cost': row[5],
+            'cmc': row[6],
+            'color': row[7],
+            'color_identity': parse_json_array(row[8]),
+            'include_pct': row[9],
+            'tags': parse_json_array(row[10]),
+            'keywords': parse_json_array(row[11]),
+            'image_url': row[12],
+            'back_image_url': row[13],
+            'set': row[14],
+            'collector_number': row[15],
         }
         cards.append(card)
     return cards

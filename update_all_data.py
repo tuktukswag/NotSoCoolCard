@@ -51,7 +51,7 @@ MELD_EXCLUDE_NAMES = {
 }
 
 
-def run_cards_fetch(skip_tagger: bool, pretty: bool, max_cards: int = DEFAULT_MAX_CARDS, refresh_bulk: bool = False) -> None:
+def run_cards_fetch(skip_tagger: bool, skip_edhrec: bool, pretty: bool, max_cards: int = DEFAULT_MAX_CARDS, refresh_bulk: bool = False) -> None:
     cmd = [
         sys.executable,
         str(BASE_DIR / "scryfall_to_json_database_full_dataset.py"),
@@ -70,6 +70,8 @@ def run_cards_fetch(skip_tagger: bool, pretty: bool, max_cards: int = DEFAULT_MA
         cmd.append("--refresh-bulk")
     if skip_tagger:
         cmd.append("--skip-tagger")
+    if skip_edhrec:
+        cmd.append("--skip-edhrec")
     if pretty:
         cmd.append("--pretty")
 
@@ -86,6 +88,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             oracle_id TEXT,
             name TEXT,
             card_type TEXT,
+            oracle_text TEXT,
             mana_cost TEXT,
             cmc REAL,
             color TEXT,
@@ -100,6 +103,9 @@ def create_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    card_cols = {row[1] for row in cursor.execute('PRAGMA table_info(cards)').fetchall()}
+    if "oracle_text" not in card_cols:
+        cursor.execute('ALTER TABLE cards ADD COLUMN oracle_text TEXT')
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS prices (
@@ -141,7 +147,7 @@ def normalize_back_images(cards: list[dict]) -> int:
     return updated
 
 
-def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
+def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool = False, skip_edhrec: bool = False) -> int:
     if not cards_json_path.exists():
         raise FileNotFoundError(f"Missing cards dataset: {cards_json_path}")
 
@@ -175,6 +181,36 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
     create_tables(conn)
     cursor = conn.cursor()
 
+    preserve_by_oracle: dict[str, tuple[float | None, list]] = {}
+    if skip_tagger or skip_edhrec:
+        try:
+            cursor.execute("SELECT oracle_id, include_pct, tags FROM cards WHERE oracle_id IS NOT NULL AND oracle_id != ''")
+            for oracle_id, include_pct, tags_json in cursor.fetchall():
+                tags = []
+                if tags_json:
+                    try:
+                        parsed = json.loads(tags_json)
+                        tags = parsed if isinstance(parsed, list) else []
+                    except Exception:
+                        tags = []
+                preserve_by_oracle[str(oracle_id)] = (include_pct, tags)
+        except Exception:
+            preserve_by_oracle = {}
+
+    if preserve_by_oracle:
+        for card in cards:
+            oracle_id = str(card.get("oracle_id") or "")
+            if not oracle_id:
+                continue
+            previous = preserve_by_oracle.get(oracle_id)
+            if not previous:
+                continue
+            old_include, old_tags = previous
+            if skip_edhrec and card.get("include_pct") is None and old_include is not None:
+                card["include_pct"] = old_include
+            if skip_tagger and not card.get("tags") and old_tags:
+                card["tags"] = old_tags
+
     cursor.execute("DELETE FROM cards")
 
     rows = []
@@ -184,6 +220,7 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
                 card.get("oracle_id"),
                 card.get("name"),
                 card.get("card_type"),
+                card.get("oracle_text"),
                 card.get("mana_cost"),
                 card.get("cmc"),
                 card.get("color"),
@@ -201,11 +238,11 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path) -> int:
     cursor.executemany(
         """
         INSERT INTO cards (
-            oracle_id, name, card_type, mana_cost, cmc, color,
+            oracle_id, name, card_type, oracle_text, mana_cost, cmc, color,
             color_identity, include_pct, tags, keywords, image_url,
             back_image_url, "set", collector_number
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -419,6 +456,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="End-to-end cards.db refresh")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip cards.json fetch and reuse existing cards.json")
     parser.add_argument("--skip-tagger", action="store_true", help="Skip tagger tags during card fetch")
+    parser.add_argument("--skip-edhrec", action="store_true", help="Skip EDHREC inclusion lookup during card fetch")
     parser.add_argument("--pretty", action="store_true", help="Write pretty cards.json during card fetch")
     parser.add_argument("--max-cards", type=int, default=DEFAULT_MAX_CARDS, help=f"Max cards to fetch from Scryfall (default: {DEFAULT_MAX_CARDS})")
     parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
@@ -428,11 +466,11 @@ def main() -> None:
     started = time.time()
 
     if not args.skip_fetch:
-        run_cards_fetch(skip_tagger=args.skip_tagger, pretty=args.pretty, max_cards=args.max_cards, refresh_bulk=args.refresh_bulk)
+        run_cards_fetch(skip_tagger=args.skip_tagger, skip_edhrec=args.skip_edhrec, pretty=args.pretty, max_cards=args.max_cards, refresh_bulk=args.refresh_bulk)
     else:
         print("[1/4] Skipped cards fetch (--skip-fetch)")
 
-    card_rows = rebuild_cards_table(CARDS_JSON, DB_FILE)
+    card_rows = rebuild_cards_table(CARDS_JSON, DB_FILE, skip_tagger=args.skip_tagger, skip_edhrec=args.skip_edhrec)
     backfilled = ensure_oracle_ids(DB_FILE, CARDS_JSON, args.oracle_sleep)
     try:
         total_oracle, updated, skipped = rebuild_prices(DB_FILE, refresh_bulk=args.refresh_bulk)
