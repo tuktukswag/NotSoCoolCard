@@ -25,6 +25,7 @@ const el = {
   text: document.getElementById("textFilter"),
   typeInclude: document.getElementById("typeIncludeFilter"),
   typeExclude: document.getElementById("typeExcludeFilter"),
+  showTagsToggle: document.getElementById("showTagsToggle"),
   cmc: document.getElementById("cmcFilter"),
   cmcMode: document.getElementById("cmcModeFilter"),
   sort: document.getElementById("sortFilter"),
@@ -63,6 +64,14 @@ function parseCommaTerms(v){ return String(v || "").split(",").map(x => normaliz
 function parseTextFilterTerms(v){
   return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean);
 }
+function parseTagFilterTerms(v){
+  return String(v || "")
+    .split(",")
+    .map(x => String(x || "").trim())
+    .map(x => x.replace(/^o?tag\s*:\s*/i, ""))
+    .map(x => normalizeText(x))
+    .filter(Boolean);
+}
 function slugifyCardName(v){ return String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[’'`]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function buildEdhrecLink(card){
   if(card?.edhrec_link) return card.edhrec_link;
@@ -89,15 +98,28 @@ function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.l
 function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
 function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.every(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
 
+function getVisibleTags(card){
+  const allTags = asArray(card.tags);
+  if(!allTags.length) return [];
+  if(el.showTagsToggle?.checked) return allTags;
+  const tagTerms = parseTagFilterTerms(el.tag?.value);
+  if(!tagTerms.length) return [];
+  return allTags.filter(tag => {
+    const norm = normalizeText(tag);
+    return tagTerms.some(term => norm.includes(term));
+  });
+}
+
 // Check if a card matches the current filter criteria
 function cardMatches(card){
   const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).join(" | ").toLowerCase();
+  const tagTerms = parseTagFilterTerms(el.tag?.value);
   const textTerms = parseTextFilterTerms(el.text?.value);
   const includePct = Number(card.include_pct ?? Infinity), sek = sekPrice(card), commanderColors = getCommanderIdentity();
   const exactColor = getExactColorFilter();
   if(normalizeText(el.name.value) && !name.includes(normalizeText(el.name.value))) return false;
   if(exactColor && color !== exactColor) return false;
-  if(normalizeText(el.tag.value) && !tags.includes(normalizeText(el.tag.value))) return false;
+  if(tagTerms.length && !tagTerms.every(term => tags.includes(term))) return false;
   if(textTerms.length){
     const oracleText = String(card._oracleTextNorm || "");
     if(!textTerms.every(term => oracleText.includes(term))) return false;
@@ -222,7 +244,15 @@ function renderCards(cards){
     node.querySelector(".meta-row").textContent = `${card.card_type||"—"}${card.edhrec_rank ? " • EDHREC rank "+card.edhrec_rank : ""}`;
     const manaCostHtml = renderManaCost(card.mana_cost);
     node.querySelector(".mana-row").innerHTML = manaCostHtml === "—" ? "—" : `Mana cost: ${manaCostHtml}`;
-    node.querySelector(".tags-row").textContent = `Tags: ${asArray(card.tags).length ? asArray(card.tags).join(", ") : "—"}`;
+    const visibleTags = getVisibleTags(card);
+    const tagsRow = node.querySelector(".tags-row");
+    if(visibleTags.length){
+      const isFilteredByTag = parseTagFilterTerms(el.tag?.value).length > 0 && !el.showTagsToggle?.checked;
+      tagsRow.textContent = isFilteredByTag ? `Matching tags: ${visibleTags.join(", ")}` : `Tags: ${visibleTags.join(", ")}`;
+      tagsRow.style.display = "";
+    } else {
+      tagsRow.style.display = "none";
+    }
     node.querySelector(".color-pill").textContent = `Color: ${card.color||"COLORLESS"}`;
     node.querySelector(".include-pill").textContent = `Include %: ${card.include_pct ?? "—"}`;
     node.querySelector(".cmc-pill").textContent = `MV: ${card.cmc ?? "—"}`;
@@ -416,7 +446,7 @@ for(const control of [el.name,el.tag,el.text,el.typeInclude,el.typeExclude]){
   control.addEventListener("input", debouncedFilter);
 }
 // Numbers and selects filter immediately on change
-for(const control of [el.include,el.price,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
+for(const control of [el.include,el.price,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.showTagsToggle,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
   if(!control) continue;
   control.addEventListener("change", immediateFilter);
 }

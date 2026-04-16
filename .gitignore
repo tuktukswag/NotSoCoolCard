@@ -8,3 +8,6 @@ __pycache__/scryfall_to_json_database_full_dataset.cpython-313.pyc
 .cache/tagger_tags_cache.json
 .cache/edhrec_inclusion_cache.json
 GITHUB_ACTION_SETUP.md
+.cache/tagger_tags_cache.json
+.cache/edhrec_inclusion_cache.json
+__pycache__/patch_special_name_inclusions.cpython-313.pyc

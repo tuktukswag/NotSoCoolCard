@@ -11,6 +11,7 @@ import unicodedata
 from datetime import datetime, timezone
 from html import unescape
 from urllib.parse import parse_qs, quote_plus, urlparse
+from playwright.sync_api import sync_playwright
 
 import requests
 from bs4 import BeautifulSoup
@@ -139,6 +140,12 @@ def normalize_edhrec_card_url(card, route_special_names=False):
     if not edhrec_url:
         return None
 
+    card_name = card.get("name")
+    # Prefer EDHREC route lookup for symbol/digit-heavy names even when Scryfall already
+    # provides a /cards/ URL, because slug pages can resolve to the wrong card in edge cases.
+    if route_special_names and _needs_edhrec_route_lookup(card_name):
+        return f"https://edhrec.com/route/?cc={quote_plus(str(card_name))}"
+
     # Already a card page.
     if "/cards/" in edhrec_url:
         return edhrec_url
@@ -160,8 +167,6 @@ def normalize_edhrec_card_url(card, route_special_names=False):
 
     # Final fallback from card name.
     card_name = card.get("name")
-    if route_special_names and _needs_edhrec_route_lookup(card_name):
-        return f"https://edhrec.com/route/?cc={quote_plus(str(card_name))}"
     slug = _slugify_edhrec_name(card_name)
     if slug:
         return f"https://edhrec.com/cards/{slug}"
@@ -217,15 +222,36 @@ def scryfall_bulk_commander_paper(max_cards, refresh_bulk=False):
     return filtered
 
 def get_inclusion(edhrec_url, edhrec_cache):
+    if not edhrec_url:
+        return None
+
+    parsed = urlparse(edhrec_url)
+    canonical_url = edhrec_url
+    if "/commanders/" in parsed.path:
+        canonical_url = edhrec_url.replace("/commanders/", "/cards/", 1)
+    elif "/route/" in parsed.path:
+        cc_value = parse_qs(parsed.query).get("cc", [""])[0]
+        slug = _slugify_edhrec_name(cc_value)
+        if slug:
+            canonical_url = f"https://edhrec.com/cards/{slug}"
+
+    # Prefer canonical card URL cache entries. They are less error-prone than route pages.
+    if canonical_url in edhrec_cache:
+        value = edhrec_cache[canonical_url]
+        edhrec_cache[edhrec_url] = value
+        return value
     if edhrec_url in edhrec_cache:
         return edhrec_cache[edhrec_url]
-    r = safe_get(edhrec_url, headers={"User-Agent": "Mozilla/5.0"})
+
+    r = safe_get(canonical_url, headers={"User-Agent": "Mozilla/5.0"})
     if not r:
         edhrec_cache[edhrec_url] = None
+        edhrec_cache[canonical_url] = None
         return None
     text = " ".join(BeautifulSoup(r.text, "html.parser").stripped_strings)
     m = re.search(r"(\d+(?:\.\d+)?)%\s*inclusion", text, re.IGNORECASE)
     value = float(m.group(1)) if m else None
+    edhrec_cache[canonical_url] = value
     edhrec_cache[edhrec_url] = value
     return value
 
@@ -249,34 +275,54 @@ def _parse_tags_from_description(description_text):
             cleaned.append(p)
     return cleaned
 
-def get_tagger_tags(card, tagger_cache):
+def get_tagger_tags(card, tagger_cache, debug=False):
     set_code = card.get("set")
     collector_number = card.get("collector_number")
     if not set_code or not collector_number:
         return []
+
     cache_key = f"{set_code}:{collector_number}"
-    if cache_key in tagger_cache:
+    if cache_key in tagger_cache and not debug:
         return tagger_cache[cache_key]
+
     tagger_url = f"https://tagger.scryfall.com/card/{set_code}/{collector_number}"
     r = safe_get(tagger_url)
     if not r:
         tagger_cache[cache_key] = []
         return []
+
     soup = BeautifulSoup(r.text, "html.parser")
     tags = []
+
+    # 1) Broad anchor scan
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        if "/tags/card/" in href:
-            txt = unescape(a.get_text(" ", strip=True)).strip()
-            if txt:
-                tags.append(txt)
-    if not tags:
-        for meta in soup.find_all("meta"):
-            content = meta.get("content")
-            if content:
-                parsed = _parse_tags_from_description(content)
-                if parsed:
-                    tags.extend(parsed)
+        txt = unescape(a.get_text(" ", strip=True)).strip()
+        if not txt:
+            continue
+
+        if (
+            "/tags/card/" in href
+            or "/tag/" in href
+            or "/tags/" in href
+        ):
+            tags.append(txt)
+
+    # 2) Meta descriptions as an additional source, not fallback-only
+    for meta in soup.find_all("meta"):
+        content = meta.get("content")
+        if content:
+            parsed = _parse_tags_from_description(content)
+            if parsed:
+                tags.extend(parsed)
+
+    # 3) Look for JSON-ish/script payloads that may contain tag data
+    script_hits = []
+    for script in soup.find_all("script"):
+        text = script.string or script.get_text(" ", strip=False) or ""
+        if "tag" in text.lower() and ("card" in text.lower() or "labels" in text.lower()):
+            script_hits.append(text[:2000])
+
     cleaned = []
     seen = set()
     for tag in tags:
@@ -285,7 +331,104 @@ def get_tagger_tags(card, tagger_cache):
         if tag and low not in seen:
             seen.add(low)
             cleaned.append(tag)
+
     tagger_cache[cache_key] = cleaned
+    return cleaned
+
+def get_tagger_tags_browser(card, page, debug=False):
+    set_code = card.get("set")
+    collector_number = card.get("collector_number")
+    if not set_code or not collector_number:
+        return []
+
+    url = f"https://tagger.scryfall.com/card/{set_code}/{collector_number}"
+
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_timeout(1500)
+
+    body_text = page.locator("body").inner_text()
+
+    if debug:
+        print(f"\nDEBUG TAGGER URL: {url}")
+        print("\nDEBUG PAGE TEXT:")
+        print(body_text[:8000])
+
+    lines = []
+    for raw_line in body_text.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if line:
+            lines.append(line)
+
+    tags = []
+    in_card_section = False
+
+    for line in lines:
+        low = line.lower()
+
+        if not in_card_section:
+            if low == "card":
+                in_card_section = True
+            continue
+
+        # End of real tag list
+        if low.startswith("inherits"):
+            break
+
+        # Obvious UI / nav / footer junk
+        if (
+            "terms of service" in low
+            or "search syntax" in low
+            or "random card" in low
+            or "view on scryfall" in low
+            or "show artwork" in low
+            or "show full card" in low
+            or "supporter account" in low
+            or "register or sign in" in low
+        ):
+            continue
+
+        if low in {
+            "guide",
+            "tags",
+            "sign in",
+            "artwork",
+            "card",
+            "annotation",
+            "annotations",
+        }:
+            continue
+
+        if re.fullmatch(r"and \d+ more", low):
+            continue
+
+        # Ignore annotation/comment style lines
+        if ":" in line or "." in line:
+            continue
+
+        # Ignore probable card names / UI blobs:
+        # tags are usually lowercase phrases, card names are Title Case
+        if line != line.lower():
+            continue
+
+        # Keep tags short
+        if len(line) > 50:
+            continue
+
+        tags.append(line)
+
+    cleaned = []
+    seen = set()
+    for tag in tags:
+        tag = unescape(tag)
+        tag = re.sub(r"\s+", " ", tag).strip(" •,;")
+        low = tag.lower()
+
+        if not tag:
+            continue
+        if low not in seen:
+            seen.add(low)
+            cleaned.append(tag)
+
     return cleaned
 
 def fetch_cards(query, max_cards, use_bulk, refresh_bulk=False):
@@ -325,11 +468,32 @@ def main():
     seen_oracle_ids = set()
     results = []
 
+    # Reuse any cached Tagger results by oracle ID across different printings.
+    tagger_cache_by_oracle: dict[str, list] = {}
+    for card in cards:
+        oracle_id = card.get("oracle_id")
+        if not oracle_id:
+            continue
+        cache_key = f"{card.get('set')}:{card.get('collector_number')}"
+        cached_tags = tagger_cache.get(cache_key)
+        if cached_tags is not None:
+            existing = tagger_cache_by_oracle.get(oracle_id)
+            if existing is None or len(cached_tags) > len(existing):
+                tagger_cache_by_oracle[oracle_id] = cached_tags
+
     total_cards = len(cards)
     edhrec_hits = 0
     tagger_hits = 0
     loop_start = time.time()
     print(f"Processing {total_cards} cards for EDHREC / Tagger...", flush=True)
+    playwright = None
+    browser = None
+    page = None
+
+    if not args.skip_tagger:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
     for idx, card in enumerate(tqdm(cards, desc="Processing cards", unit="card", **TQDM_KWARGS), start=1):
         type_line = str(card.get("type_line") or "")
         if "sticker" in type_line.lower():
@@ -348,9 +512,35 @@ def main():
         if not args.full_dataset and (inclusion_pct is None or inclusion_pct >= args.threshold):
             continue
 
-        tags = [] if args.skip_tagger else get_tagger_tags(card, tagger_cache)
-        if tags:
-            tagger_hits += 1
+        if args.skip_tagger:
+            tags = []
+        else:
+            cache_key = f"{card.get('set')}:{card.get('collector_number')}"
+            tags = tagger_cache.get(cache_key)
+            tags_from_cache = tags is not None
+
+            if tags is None:
+                oracle_id = card.get("oracle_id")
+                if oracle_id:
+                    tags = tagger_cache_by_oracle.get(oracle_id)
+                    if tags is not None:
+                        tagger_cache[cache_key] = tags
+                        tags_from_cache = True
+
+            if tags is None:
+                tags = get_tagger_tags(card, tagger_cache)
+                tags_from_cache = False
+
+            browser_tags = []
+            if not tags_from_cache and 0 < len(tags) < 8 and page is not None:
+                browser_tags = get_tagger_tags_browser(card, page)
+
+                if len(browser_tags) > len(tags):
+                    tags = browser_tags
+                    tagger_cache[cache_key] = tags
+
+            if tags:
+                tagger_hits += 1
 
         front_image_url = get_image_url(card)
         back_image_url = get_back_image_url(card, front_image_url)
@@ -412,6 +602,13 @@ def main():
         },
         "cards": results,
     }
+
+    if page:
+        page.close()
+    if browser:
+        browser.close()
+    if playwright:
+        playwright.stop()
 
     print(f"Writing JSON with {len(results)} cards to {args.out}...")
     with open(args.out, "w", encoding="utf-8") as f:
