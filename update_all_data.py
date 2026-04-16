@@ -90,6 +90,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             card_type TEXT,
             oracle_text TEXT,
             mana_cost TEXT,
+            back_mana_cost TEXT,
             cmc REAL,
             color TEXT,
             color_identity TEXT,
@@ -106,6 +107,8 @@ def create_tables(conn: sqlite3.Connection) -> None:
     card_cols = {row[1] for row in cursor.execute('PRAGMA table_info(cards)').fetchall()}
     if "oracle_text" not in card_cols:
         cursor.execute('ALTER TABLE cards ADD COLUMN oracle_text TEXT')
+    if "back_mana_cost" not in card_cols:
+        cursor.execute('ALTER TABLE cards ADD COLUMN back_mana_cost TEXT')
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS prices (
@@ -222,6 +225,7 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
                 card.get("card_type"),
                 card.get("oracle_text"),
                 card.get("mana_cost"),
+                card.get("back_mana_cost"),
                 card.get("cmc"),
                 card.get("color"),
                 json.dumps(card.get("color_identity", [])),
@@ -238,11 +242,11 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
     cursor.executemany(
         """
         INSERT INTO cards (
-            oracle_id, name, card_type, oracle_text, mana_cost, cmc, color,
+            oracle_id, name, card_type, oracle_text, mana_cost, back_mana_cost, cmc, color,
             color_identity, include_pct, tags, keywords, image_url,
             back_image_url, "set", collector_number
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )

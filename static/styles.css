@@ -55,6 +55,8 @@ textarea { resize: vertical; min-height: 240px; font-family: Consolas, monospace
 .link-row { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 12px; }
 a { color: #8ec5ff; text-decoration: none; }
 .mana-pips { display: inline-flex; gap: 2px; vertical-align: middle; align-items: center; }
+.pill-label-pips { display: inline-flex; align-items: center; gap: 5px; }
+.pip-label { font-size: 13px; color: #d6deeb; white-space: nowrap; }
 .mana-pip { width: 18px; height: 18px; }
 .empty-state, .info-box, .warning-box, .success-box { padding: 14px; border-radius: 12px; border: 1px solid #394155; background: #171c25; color: #d6deeb; }
 #deckInfoBox { padding: 20px; font-size: 16px; font-weight: bold; }

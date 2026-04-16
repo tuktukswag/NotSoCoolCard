@@ -11,3 +11,8 @@ GITHUB_ACTION_SETUP.md
 .cache/tagger_tags_cache.json
 .cache/edhrec_inclusion_cache.json
 __pycache__/patch_special_name_inclusions.cpython-313.pyc
+.cache/edhrec_inclusion_cache.json
+.cache/tagger_tags_cache.json
+__pycache__/app.cpython-313.pyc
+__pycache__/patch_face_mana_costs.cpython-313.pyc
+__pycache__/update_all_data.cpython-313.pyc

@@ -116,6 +116,12 @@ def get_back_image_url(card, front_url=None):
 
     return None
 
+def get_back_mana_cost(card):
+    faces = card.get("card_faces") or []
+    if len(faces) >= 2:
+        return faces[1].get("mana_cost")
+    return None
+
 def get_oracle_text(card):
     text = card.get("oracle_text")
     if text:
@@ -544,6 +550,7 @@ def main():
 
         front_image_url = get_image_url(card)
         back_image_url = get_back_image_url(card, front_image_url)
+        back_mana_cost = get_back_mana_cost(card)
 
         results.append({
             "name": card.get("name"),
@@ -555,7 +562,8 @@ def main():
             "edhrec_found": inclusion_pct is not None,
             "card_type": card.get("type_line"),
             "oracle_text": get_oracle_text(card),
-            "mana_cost": card.get("mana_cost"),
+            "mana_cost": card.get("mana_cost") or (card.get("card_faces") or [{}])[0].get("mana_cost"),
+            "back_mana_cost": back_mana_cost,
             "cmc": card.get("cmc"),
             "edhrec_rank": card.get("edhrec_rank"),
             "edhrec_link": inclusion_url,

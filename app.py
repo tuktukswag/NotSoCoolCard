@@ -79,6 +79,7 @@ def load_cards():
     oracle_expr = '"oracle_id" AS oracle_id' if "oracle_id" in columns else "NULL AS oracle_id"
     oracle_text_expr = '"oracle_text" AS oracle_text' if "oracle_text" in columns else "NULL AS oracle_text"
     back_image_expr = '"back_image_url" AS back_image_url' if "back_image_url" in columns else "NULL AS back_image_url"
+    back_mana_expr = '"back_mana_cost" AS back_mana_cost' if "back_mana_cost" in columns else "NULL AS back_mana_cost"
     set_expr = '"set" AS set_code' if "set" in columns else "NULL AS set_code"
     collector_expr = '"collector_number" AS collector_number' if "collector_number" in columns else "NULL AS collector_number"
 
@@ -99,6 +100,7 @@ def load_cards():
             keywords,
             image_url,
             {back_image_expr},
+            {back_mana_expr},
             {set_expr},
             {collector_expr}
         FROM cards
@@ -123,8 +125,9 @@ def load_cards():
             'keywords': parse_json_array(row[11]),
             'image_url': row[12],
             'back_image_url': row[13],
-            'set': row[14],
-            'collector_number': row[15],
+            'back_mana_cost': row[14],
+            'set': row[15],
+            'collector_number': row[16],
         }
         cards.append(card)
     return cards

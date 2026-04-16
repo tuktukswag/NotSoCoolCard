@@ -189,12 +189,75 @@ function renderManaCost(manaCost){
   return wrapper.outerHTML;
 }
 
+function renderColorPips(card, manaCostOverride=null){
+  const WUBRG = ["W","U","B","R","G"];
+  const pill = document.createElement("span");
+  pill.className = "pill-label-pips";
+  const label = document.createElement("span");
+  label.className = "pip-label"; label.textContent = "Color:";
+  pill.appendChild(label);
+  // Extract only colored symbols from mana cost (skip generic, X, snow, etc.)
+  const colorSet = new Set();
+  const sourceManaCost = manaCostOverride !== null && manaCostOverride !== undefined ? manaCostOverride : card.mana_cost;
+  const manaCost = String(sourceManaCost || "").replace(/ \/\/ .+/, ""); // front face only
+  const tokens = manaCost.match(/\{[^}]+\}/g) || [];
+  const ordered = [];
+  const seen = new Set();
+  for(const tok of tokens){
+    const inner = tok.slice(1,-1).toUpperCase();
+    // hybrid pips like {W/U} — count both colours
+    const parts = inner.split("/");
+    for(const p of parts){
+      if(WUBRG.includes(p)){
+        colorSet.add(p);
+        if(!seen.has(p)){
+          seen.add(p);
+          ordered.push(p);
+        }
+      }
+    }
+  }
+  // Add any remaining colors in WUBRG order (normally none, but keeps behavior robust).
+  for(const c of WUBRG){
+    if(colorSet.has(c) && !seen.has(c)) ordered.push(c);
+  }
+  if(!ordered.length){
+    // no mana cost at all (lands etc.) — show dash; purely generic cost — show {C}
+    if(!tokens.length){
+      pill.appendChild(document.createTextNode(" —"));
+    } else {
+      const wrapper = document.createElement("span");
+      wrapper.className = "mana-pips";
+      const img = document.createElement("img");
+      img.className = "mana-pip"; img.alt = "{C}"; img.title = "{C}"; img.src = SYMBOLOGY["{C}"] || "";
+      wrapper.appendChild(img);
+      pill.appendChild(wrapper);
+    }
+    return pill.outerHTML;
+  }
+  const wrapper = document.createElement("span");
+  wrapper.className = "mana-pips";
+  for(const c of ordered){
+    const token = `{${c}}`;
+    const img = document.createElement("img");
+    img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
+    wrapper.appendChild(img);
+  }
+  pill.appendChild(wrapper);
+  return pill.outerHTML;
+}
+
 function renderColorIdentityPips(card){
   const WUBRG = ["W","U","B","R","G"];
   const identitySet = new Set();
   if(Array.isArray(card.color_identity) && card.color_identity.length){
     for(const c of card.color_identity) identitySet.add(String(c).toUpperCase());
   }
+  const pill = document.createElement("span");
+  pill.className = "pill-label-pips";
+  const label = document.createElement("span");
+  label.className = "pip-label"; label.textContent = "Identity:";
+  pill.appendChild(label);
   if(!identitySet.size){
     if(String(card.color || "").toUpperCase() === "COLORLESS"){
       const wrapper = document.createElement("span");
@@ -202,9 +265,11 @@ function renderColorIdentityPips(card){
       const img = document.createElement("img");
       img.className = "mana-pip"; img.alt = "{C}"; img.title = "{C}"; img.src = SYMBOLOGY["{C}"] || "";
       wrapper.appendChild(img);
-      return wrapper.outerHTML;
+      pill.appendChild(wrapper);
+      return pill.outerHTML;
     }
-    return "Identity: —";
+    pill.appendChild(document.createTextNode(" —"));
+    return pill.outerHTML;
   }
   // Follow mana cost symbol order first, then WUBRG for remainder (e.g. colours from rules text)
   const ordered = [];
@@ -228,7 +293,8 @@ function renderColorIdentityPips(card){
     img.className = "mana-pip"; img.alt = token; img.title = token; img.src = SYMBOLOGY[token] || "";
     wrapper.appendChild(img);
   }
-  return wrapper.outerHTML;
+  pill.appendChild(wrapper);
+  return pill.outerHTML;
 }
 
 function renderCards(cards){
@@ -253,11 +319,12 @@ function renderCards(cards){
     } else {
       tagsRow.style.display = "none";
     }
-    node.querySelector(".color-pill").textContent = `Color: ${card.color||"COLORLESS"}`;
-    node.querySelector(".include-pill").textContent = `Include %: ${card.include_pct ?? "—"}`;
-    node.querySelector(".cmc-pill").textContent = `MV: ${card.cmc ?? "—"}`;
+    const colorPill = node.querySelector(".color-pill");
+    colorPill.innerHTML = renderColorPips(card);
     node.querySelector(".commander-pill").innerHTML = renderColorIdentityPips(card);
+    node.querySelector(".include-pill").textContent = `Include %: ${card.include_pct ?? "—"}`;
     node.querySelector(".price-pill").textContent = `SEK: ${formatSek(sekPrice(card))}`;
+    node.querySelector(".cmc-pill").textContent = `MV: ${card.cmc ?? "—"}`;
     node.querySelector(".edhrec-link").href = buildEdhrecLink(card);
     node.querySelector(".scryfall-link").href = buildScryfallLink(card);
     node.querySelector(".image-link").href = card.image_url || "#";
@@ -270,6 +337,7 @@ function renderCards(cards){
       flipBtn.addEventListener("click", () => {
         isFlipped = !isFlipped;
         img.src = isFlipped ? card.back_image_url : card.image_url;
+        colorPill.innerHTML = renderColorPips(card, isFlipped ? card.back_mana_cost : card.mana_cost);
         flipBtn.textContent = isFlipped ? "↺" : "↻";
       });
     } else {
