@@ -26,6 +26,8 @@ const el = {
   typeInclude: document.getElementById("typeIncludeFilter"),
   typeExclude: document.getElementById("typeExcludeFilter"),
   showTagsToggle: document.getElementById("showTagsToggle"),
+  searchFiltersBtn: document.getElementById("searchFiltersBtn"),
+  resetFiltersBtn: document.getElementById("resetFiltersBtn"),
   cmc: document.getElementById("cmcFilter"),
   cmcMode: document.getElementById("cmcModeFilter"),
   sort: document.getElementById("sortFilter"),
@@ -60,17 +62,43 @@ const el = {
 // Utility functions
 function asArray(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
 function normalizeText(v){ return String(v || "").toLowerCase().replace(/[^\w\s']/g," ").replace(/\s+/g," ").trim(); }
-function parseCommaTerms(v){ return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean); }
-function parseTextFilterTerms(v){
-  return String(v || "").split(",").map(x => normalizeText(x)).filter(Boolean);
+function parseFilterClauses(v, normalizeTerm = normalizeText){
+  return String(v || "")
+    .split(",")
+    .map(group => group.split("|").map(term => normalizeTerm(term)).filter(Boolean))
+    .filter(group => group.length > 0);
 }
+function parseCommaTerms(v){ return parseFilterClauses(v).flat(); }
+function parseTextFilterTerms(v){ return parseFilterClauses(v); }
+function normalizeTagTerm(v){ return normalizeText(String(v || "").replace(/^o?tag\s*:\s*/i, "")); }
+function escapeRegExp(v){ return String(v || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function parseTagFilterTerms(v){
   return String(v || "")
     .split(",")
-    .map(x => String(x || "").trim())
-    .map(x => x.replace(/^o?tag\s*:\s*/i, ""))
-    .map(x => normalizeText(x))
-    .filter(Boolean);
+    .map(group => group.split("|")
+      .map(term => {
+        const raw = String(term || "").trim().replace(/^o?tag\s*:\s*/i, "");
+        const exact = /^".*"$/.test(raw);
+        const normalized = normalizeText(exact ? raw.slice(1, -1) : raw);
+        return normalized ? { term: normalized, exact } : null;
+      })
+      .filter(Boolean)
+    )
+    .filter(group => group.length > 0);
+}
+function textMatchesClauses(text, clauses){
+  if(!clauses.length) return true;
+  return clauses.every(group => group.some(term => text.includes(term)));
+}
+function tagMatchesTerm(tagText, tagTerm){
+  if(!tagTerm?.term) return false;
+  if(!tagTerm.exact) return tagText.includes(tagTerm.term);
+  const pattern = new RegExp(`(^|\\s)${escapeRegExp(tagTerm.term)}(\\s|$)`);
+  return pattern.test(tagText);
+}
+function tagMatchesClauses(tagText, clauses){
+  if(!clauses.length) return true;
+  return clauses.every(group => group.some(term => tagMatchesTerm(tagText, term)));
 }
 function slugifyCardName(v){ return String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[’'`]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 function buildEdhrecLink(card){
@@ -96,7 +124,14 @@ function getExactColorFilter(){ const order = ["W","U","B","R","G","COLORLESS"];
 function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); if(document.getElementById("commanderC")?.checked) c.push("C"); return c; }
 function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.length) return true; const cc = Array.isArray(card.color_identity)&&card.color_identity.length ? card.color_identity : (card.color&&card.color!=="COLORLESS" ? card.color.split("") : []); return cc.every(x=>commanderColors.includes(x)); }
 function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
-function typePassesFilter(type){ const txt = normalizeText(type); const include = parseCommaTerms(el.typeInclude.value); const exclude = parseCommaTerms(el.typeExclude.value); if(include.length && !include.every(t=>txt.includes(t))) return false; if(exclude.some(t=>txt.includes(t))) return false; return true; }
+function typePassesFilter(type){
+  const txt = normalizeText(type);
+  const include = parseFilterClauses(el.typeInclude.value);
+  const exclude = parseFilterClauses(el.typeExclude.value);
+  if(!textMatchesClauses(txt, include)) return false;
+  if(exclude.some(group => group.some(term => txt.includes(term)))) return false;
+  return true;
+}
 
 function getVisibleTags(card){
   const allTags = asArray(card.tags);
@@ -106,7 +141,7 @@ function getVisibleTags(card){
   if(!tagTerms.length) return [];
   return allTags.filter(tag => {
     const norm = normalizeText(tag);
-    return tagTerms.some(term => norm.includes(term));
+    return tagTerms.some(group => group.some(term => tagMatchesTerm(norm, term)));
   });
 }
 
@@ -119,10 +154,10 @@ function cardMatches(card){
   const exactColor = getExactColorFilter();
   if(normalizeText(el.name.value) && !name.includes(normalizeText(el.name.value))) return false;
   if(exactColor && color !== exactColor) return false;
-  if(tagTerms.length && !tagTerms.every(term => tags.includes(term))) return false;
+  if(!tagMatchesClauses(tags, tagTerms)) return false;
   if(textTerms.length){
     const oracleText = String(card._oracleTextNorm || "");
-    if(!textTerms.every(term => oracleText.includes(term))) return false;
+    if(!textMatchesClauses(oracleText, textTerms)) return false;
   }
   if(el.include.value !== "" && !(includePct <= Number(el.include.value))) return false;
   if(el.price.value !== "" && !(sek !== null && sek <= Number(el.price.value))) return false;
@@ -479,6 +514,23 @@ function updateDeckThresholdLabel(){
   if(labelSpan) labelSpan.textContent = labelText;
 }
 
+function resetSearchFilters(){
+  for(const control of [el.name, el.include, el.price, el.tag, el.text, el.typeInclude, el.typeExclude, el.cmc]){
+    if(control) control.value = "";
+  }
+  if(el.cmcMode) el.cmcMode.value = "lte";
+  if(el.sort) el.sort.value = "include_desc";
+  if(el.imageToggle) el.imageToggle.checked = true;
+  if(el.showTagsToggle) el.showTagsToggle.checked = false;
+
+  for(const checkbox of document.querySelectorAll('input[name="exactColor"]')) checkbox.checked = false;
+  for(const control of [el.commanderW, el.commanderU, el.commanderB, el.commanderR, el.commanderG, document.getElementById("commanderC")]){
+    if(control) control.checked = false;
+  }
+
+  applyFilters(true);
+}
+
 function activateTab(which){
   const isSearch = which==="search";
   el.searchTabBtn.classList.toggle("active",isSearch);
@@ -505,22 +557,44 @@ async function init(){
   applyFilters(true);
 }
 
-let filterTimeout;
-const debouncedFilter = () => { clearTimeout(filterTimeout); filterTimeout = setTimeout(()=>applyFilters(true), 300); };
-const immediateFilter = () => applyFilters(true);
-// Text inputs use debouncing to reduce excessive filtering
-for(const control of [el.name,el.tag,el.text,el.typeInclude,el.typeExclude]){
+const searchControlIds = [
+  "nameFilter",
+  "includeFilter",
+  "priceFilter",
+  "typeIncludeFilter",
+  "typeExcludeFilter",
+  "tagFilter",
+  "textFilter",
+  "cmcFilter",
+  "cmcModeFilter",
+  "sortFilter",
+  "imageToggle",
+  "showTagsToggle",
+  "commanderW",
+  "commanderU",
+  "commanderB",
+  "commanderR",
+  "commanderG",
+  "commanderC",
+];
+
+for(const id of searchControlIds){
+  const control = document.getElementById(id);
   if(!control) continue;
-  control.addEventListener("input", debouncedFilter);
+  control.addEventListener("keydown", (event) => {
+    if(event.key === "Enter") applyFilters(true);
+  });
 }
-// Numbers and selects filter immediately on change
-for(const control of [el.include,el.price,el.cmc,el.cmcMode,el.sort,el.imageToggle,el.showTagsToggle,el.commanderW,el.commanderU,el.commanderB,el.commanderR,el.commanderG,document.getElementById("commanderC")]){
-  if(!control) continue;
-  control.addEventListener("change", immediateFilter);
-}
+
 document.querySelectorAll('input[name="exactColor"]').forEach(checkbox=>{
-  checkbox.addEventListener("change", immediateFilter);
+  checkbox.addEventListener("keydown", (event) => {
+    if(event.key === "Enter") applyFilters(true);
+  });
 });
+
+if(el.searchFiltersBtn) el.searchFiltersBtn.addEventListener("click", () => applyFilters(true));
+if(el.resetFiltersBtn) el.resetFiltersBtn.addEventListener("click", resetSearchFilters);
+
 el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
 updateDeckThresholdLabel();
 el.nextPageBtn.addEventListener("click",nextPage); el.nextPageBtnBottom.addEventListener("click",nextPage);
