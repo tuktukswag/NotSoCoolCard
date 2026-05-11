@@ -29,8 +29,8 @@ const el = {
   showTagsToggle: document.getElementById("showTagsToggle"),
   searchFiltersBtn: document.getElementById("searchFiltersBtn"),
   resetFiltersBtn: document.getElementById("resetFiltersBtn"),
-  cmc: document.getElementById("cmcFilter"),
-  cmcMode: document.getElementById("cmcModeFilter"),
+  cmcMin: document.getElementById("cmcMinFilter"),
+  cmcMax: document.getElementById("cmcMaxFilter"),
   sort: document.getElementById("sortFilter"),
   imageToggle: document.getElementById("imageToggle"),
   limitCommander: document.getElementById("limitToCommanderIdentity"),
@@ -126,7 +126,7 @@ function getCardSetCode(card){ return normalizeText(card?.set || card?.set_code 
 function getExactColorFilter(){ const order = ["W","U","B","R","G","COLORLESS"]; const selected = Array.from(document.querySelectorAll('input[name="exactColor"]:checked')).map(el=>el.value); if(!selected.length) return ""; if(selected.includes("COLORLESS") && selected.length===1) return "COLORLESS"; const selectedColors = order.filter(code=>code!="COLORLESS" && selected.includes(code)); return selectedColors.join(""); }
 function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); if(document.getElementById("commanderC")?.checked) c.push("C"); return c; }
 function cardFitsCommanderIdentity(card, commanderColors){ if(!commanderColors.length) return true; const cc = Array.isArray(card.color_identity)&&card.color_identity.length ? card.color_identity : (card.color&&card.color!=="COLORLESS" ? card.color.split("") : []); return cc.every(x=>commanderColors.includes(x)); }
-function manaPassesFilter(cmc){ const f = el.cmc.value==="" ? null : Number(el.cmc.value); if(f===null) return true; const c = Number(cmc ?? Infinity); if(el.cmcMode.value==="eq") return c===f; if(el.cmcMode.value==="gte") return c>=f; return c<=f; }
+function manaPassesFilter(cmc){ const min = el.cmcMin.value==="" ? null : Number(el.cmcMin.value); const max = el.cmcMax.value==="" ? null : Number(el.cmcMax.value); if(min===null && max===null) return true; const c = Number(cmc ?? Infinity); if(min!==null && c<min) return false; if(max!==null && c>max) return false; return true; }
 function typePassesFilter(type){
   const txt = normalizeText(type);
   const include = parseFilterClauses(el.typeInclude.value);
@@ -535,26 +535,10 @@ function ensureSetFilterControl(){
   el.set = document.getElementById("setFilter");
 }
 
-function ensureToggleActionLayout(){
-  const imageLabel = el.imageToggle?.closest("label");
-  const tagsLabel = el.showTagsToggle?.closest("label");
-  const searchActions = document.querySelector(".search-actions");
-  if(!imageLabel || !tagsLabel || !searchActions) return;
-  const parent = searchActions.parentElement;
-  if(!parent || parent.querySelector(".toggle-actions")) return;
-  const wrapper = document.createElement("div");
-  wrapper.className = "toggle-actions";
-  parent.insertBefore(wrapper, imageLabel);
-  wrapper.appendChild(imageLabel);
-  wrapper.appendChild(tagsLabel);
-  wrapper.appendChild(searchActions);
-}
-
 function resetSearchFilters(){
-  for(const control of [el.name, el.set, el.include, el.price, el.tag, el.text, el.typeInclude, el.typeExclude, el.cmc]){
+  for(const control of [el.name, el.set, el.include, el.price, el.tag, el.text, el.typeInclude, el.typeExclude, el.cmcMin, el.cmcMax]){
     if(control) control.value = "";
   }
-  if(el.cmcMode) el.cmcMode.value = "lte";
   if(el.sort) el.sort.value = "include_desc";
   if(el.imageToggle) el.imageToggle.checked = true;
   if(el.showTagsToggle) el.showTagsToggle.checked = false;
@@ -577,7 +561,6 @@ function activateTab(which){
 
 async function init(){
   ensureSetFilterControl();
-  ensureToggleActionLayout();
   const [cardsResp, symResp] = await Promise.all([fetch("/api/cards"), fetch("/api/symbology")]);
   const cardsData = await cardsResp.json(); const symData = await symResp.json();
   ALL_CARDS = Array.isArray(cardsData.cards) ? cardsData.cards : [];
@@ -596,7 +579,6 @@ async function init(){
 }
 
 ensureSetFilterControl();
-ensureToggleActionLayout();
 
 const searchControlIds = [
   "nameFilter",
@@ -607,8 +589,8 @@ const searchControlIds = [
   "typeExcludeFilter",
   "tagFilter",
   "textFilter",
-  "cmcFilter",
-  "cmcModeFilter",
+  "cmcMinFilter",
+  "cmcMaxFilter",
   "sortFilter",
   "imageToggle",
   "showTagsToggle",
