@@ -525,6 +525,26 @@ function updateDeckThresholdLabel(){
   if(labelSpan) labelSpan.textContent = labelText;
 }
 
+function ensureTopbarActionsLayout(){
+  const imageLabel = el.imageToggle?.closest("label");
+  const tagsLabel = el.showTagsToggle?.closest("label");
+  const searchActions = document.querySelector(".search-actions");
+  if(!imageLabel || !tagsLabel || !searchActions) return;
+  // Already inside topbar-actions — nothing to do
+  if(imageLabel.closest(".topbar-actions")) return;
+  const topbar = document.querySelector(".topbar");
+  if(!topbar) return;
+  let wrapper = topbar.querySelector(".topbar-actions");
+  if(!wrapper){
+    wrapper = document.createElement("div");
+    wrapper.className = "topbar-actions";
+    topbar.appendChild(wrapper);
+  }
+  wrapper.appendChild(imageLabel);
+  wrapper.appendChild(tagsLabel);
+  wrapper.appendChild(searchActions);
+}
+
 function ensureSetFilterControl(){
   if(el.set) return;
   const nameInput = document.getElementById("nameFilter");
@@ -561,6 +581,7 @@ function activateTab(which){
 
 async function init(){
   ensureSetFilterControl();
+  ensureTopbarActionsLayout();
   const [cardsResp, symResp] = await Promise.all([fetch("/api/cards"), fetch("/api/symbology")]);
   const cardsData = await cardsResp.json(); const symData = await symResp.json();
   ALL_CARDS = Array.isArray(cardsData.cards) ? cardsData.cards : [];
@@ -579,6 +600,7 @@ async function init(){
 }
 
 ensureSetFilterControl();
+ensureTopbarActionsLayout();
 
 const searchControlIds = [
   "nameFilter",
