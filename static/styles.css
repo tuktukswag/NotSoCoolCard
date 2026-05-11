@@ -48,12 +48,18 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 input, select, button, textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #303746; background: #0d1016; color: #f1f3f5; }
 textarea { resize: vertical; min-height: 240px; font-family: Consolas, monospace; }
 .checkbox-label { justify-content: end; flex-direction: row; align-items: center; gap: 8px; padding-top: 24px; }
-.search-actions {
+.toggle-actions {
 	grid-column: 1 / -1;
+	display: flex;
+	align-items: end;
+	gap: 12px;
+}
+.search-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 10px;
-	padding-top: 6px;
+	margin-left: auto;
+	padding-top: 0;
 }
 .search-actions button {
 	width: auto;

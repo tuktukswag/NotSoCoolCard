@@ -19,6 +19,7 @@ const el = {
   searchTab: document.getElementById("searchTab"),
   deckCheckTab: document.getElementById("deckCheckTab"),
   name: document.getElementById("nameFilter"),
+  set: document.getElementById("setFilter"),
   include: document.getElementById("includeFilter"),
   price: document.getElementById("priceFilter"),
   tag: document.getElementById("tagFilter"),
@@ -62,6 +63,7 @@ const el = {
 // Utility functions
 function asArray(v){ return Array.isArray(v) ? v : (v ? [v] : []); }
 function normalizeText(v){ return String(v || "").toLowerCase().replace(/[^\w\s']/g," ").replace(/\s+/g," ").trim(); }
+function normalizeTagText(v){ return String(v || "").toLowerCase().replace(/[^\w\s-]/g," ").replace(/\s+/g," ").trim(); }
 function parseFilterClauses(v, normalizeTerm = normalizeText){
   return String(v || "")
     .split(",")
@@ -79,7 +81,7 @@ function parseTagFilterTerms(v){
       .map(term => {
         const raw = String(term || "").trim().replace(/^o?tag\s*:\s*/i, "");
         const exact = /^".*"$/.test(raw);
-        const normalized = normalizeText(exact ? raw.slice(1, -1) : raw);
+        const normalized = normalizeTagText(exact ? raw.slice(1, -1) : raw);
         return normalized ? { term: normalized, exact } : null;
       })
       .filter(Boolean)
@@ -93,7 +95,7 @@ function textMatchesClauses(text, clauses){
 function tagMatchesTerm(tagText, tagTerm){
   if(!tagTerm?.term) return false;
   if(!tagTerm.exact) return tagText.includes(tagTerm.term);
-  const pattern = new RegExp(`(^|\\s)${escapeRegExp(tagTerm.term)}(\\s|$)`);
+  const pattern = new RegExp(`(^|[\\s-])${escapeRegExp(tagTerm.term)}($|[\\s-])`);
   return pattern.test(tagText);
 }
 function tagMatchesClauses(tagText, clauses){
@@ -119,6 +121,7 @@ function usdPrice(card){ const usd = card?.price?.usd; const n = Number(usd); re
 function sekPrice(card){ const usd = usdPrice(card); return usd !== null && USD_SEK_RATE !== null ? usd * USD_SEK_RATE : null; }
 function formatSek(v){ return v === null ? "—" : new Intl.NumberFormat("sv-SE",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v); }
 function buildCardLookup(cards){ const m = new Map(); for(const c of cards){ const k = normalizeText(c.name); if(k && !m.has(k)) m.set(k,c);} return m; }
+function getCardSetCode(card){ return normalizeText(card?.set || card?.set_code || card?.set_shortname || ""); }
 
 function getExactColorFilter(){ const order = ["W","U","B","R","G","COLORLESS"]; const selected = Array.from(document.querySelectorAll('input[name="exactColor"]:checked')).map(el=>el.value); if(!selected.length) return ""; if(selected.includes("COLORLESS") && selected.length===1) return "COLORLESS"; const selectedColors = order.filter(code=>code!="COLORLESS" && selected.includes(code)); return selectedColors.join(""); }
 function getCommanderIdentity(){ const c=[]; if(el.commanderW.checked)c.push("W"); if(el.commanderU.checked)c.push("U"); if(el.commanderB.checked)c.push("B"); if(el.commanderR.checked)c.push("R"); if(el.commanderG.checked)c.push("G"); if(document.getElementById("commanderC")?.checked) c.push("C"); return c; }
@@ -133,6 +136,13 @@ function typePassesFilter(type){
   return true;
 }
 
+function setPassesFilter(card){
+  const clauses = parseFilterClauses(el.set?.value);
+  if(!clauses.length) return true;
+  const setCode = getCardSetCode(card);
+  return clauses.every(group => group.some(term => setCode.includes(term)));
+}
+
 function getVisibleTags(card){
   const allTags = asArray(card.tags);
   if(!allTags.length) return [];
@@ -140,19 +150,20 @@ function getVisibleTags(card){
   const tagTerms = parseTagFilterTerms(el.tag?.value);
   if(!tagTerms.length) return [];
   return allTags.filter(tag => {
-    const norm = normalizeText(tag);
+    const norm = normalizeTagText(tag);
     return tagTerms.some(group => group.some(term => tagMatchesTerm(norm, term)));
   });
 }
 
 // Check if a card matches the current filter criteria
 function cardMatches(card){
-  const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).join(" | ").toLowerCase();
+  const name = normalizeText(card.name), color = String(card.color || "COLORLESS"), tags = asArray(card.tags).map(normalizeTagText).join(" | ");
   const tagTerms = parseTagFilterTerms(el.tag?.value);
   const textTerms = parseTextFilterTerms(el.text?.value);
   const includePct = Number(card.include_pct ?? Infinity), sek = sekPrice(card), commanderColors = getCommanderIdentity();
   const exactColor = getExactColorFilter();
   if(normalizeText(el.name.value) && !name.includes(normalizeText(el.name.value))) return false;
+  if(!setPassesFilter(card)) return false;
   if(exactColor && color !== exactColor) return false;
   if(!tagMatchesClauses(tags, tagTerms)) return false;
   if(textTerms.length){
@@ -514,8 +525,33 @@ function updateDeckThresholdLabel(){
   if(labelSpan) labelSpan.textContent = labelText;
 }
 
+function ensureSetFilterControl(){
+  if(el.set) return;
+  const nameInput = document.getElementById("nameFilter");
+  if(!nameInput?.parentElement) return;
+  const label = document.createElement("label");
+  label.innerHTML = '<span class="label-title">Set <span class="info-dot" title="Filter by set code shortname, like neo or mh3. Use | for OR and , for AND groups.">i</span></span><input id="setFilter" type="text" placeholder="neo|mh3">';
+  nameInput.parentElement.insertAdjacentElement("afterend", label);
+  el.set = document.getElementById("setFilter");
+}
+
+function ensureToggleActionLayout(){
+  const imageLabel = el.imageToggle?.closest("label");
+  const tagsLabel = el.showTagsToggle?.closest("label");
+  const searchActions = document.querySelector(".search-actions");
+  if(!imageLabel || !tagsLabel || !searchActions) return;
+  const parent = searchActions.parentElement;
+  if(!parent || parent.querySelector(".toggle-actions")) return;
+  const wrapper = document.createElement("div");
+  wrapper.className = "toggle-actions";
+  parent.insertBefore(wrapper, imageLabel);
+  wrapper.appendChild(imageLabel);
+  wrapper.appendChild(tagsLabel);
+  wrapper.appendChild(searchActions);
+}
+
 function resetSearchFilters(){
-  for(const control of [el.name, el.include, el.price, el.tag, el.text, el.typeInclude, el.typeExclude, el.cmc]){
+  for(const control of [el.name, el.set, el.include, el.price, el.tag, el.text, el.typeInclude, el.typeExclude, el.cmc]){
     if(control) control.value = "";
   }
   if(el.cmcMode) el.cmcMode.value = "lte";
@@ -540,6 +576,8 @@ function activateTab(which){
 }
 
 async function init(){
+  ensureSetFilterControl();
+  ensureToggleActionLayout();
   const [cardsResp, symResp] = await Promise.all([fetch("/api/cards"), fetch("/api/symbology")]);
   const cardsData = await cardsResp.json(); const symData = await symResp.json();
   ALL_CARDS = Array.isArray(cardsData.cards) ? cardsData.cards : [];
@@ -557,8 +595,12 @@ async function init(){
   applyFilters(true);
 }
 
+ensureSetFilterControl();
+ensureToggleActionLayout();
+
 const searchControlIds = [
   "nameFilter",
+  "setFilter",
   "includeFilter",
   "priceFilter",
   "typeIncludeFilter",
@@ -594,6 +636,10 @@ document.querySelectorAll('input[name="exactColor"]').forEach(checkbox=>{
 
 if(el.searchFiltersBtn) el.searchFiltersBtn.addEventListener("click", () => applyFilters(true));
 if(el.resetFiltersBtn) el.resetFiltersBtn.addEventListener("click", resetSearchFilters);
+
+// Toggles that only affect rendering — re-render immediately without re-filtering
+if(el.imageToggle) el.imageToggle.addEventListener("change", () => renderCards(currentFilteredSorted));
+if(el.showTagsToggle) el.showTagsToggle.addEventListener("change", () => renderCards(currentFilteredSorted));
 
 el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
 updateDeckThresholdLabel();
