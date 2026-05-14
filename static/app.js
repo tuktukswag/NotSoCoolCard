@@ -27,6 +27,7 @@ const el = {
   typeInclude: document.getElementById("typeIncludeFilter"),
   typeExclude: document.getElementById("typeExcludeFilter"),
   showTagsToggle: document.getElementById("showTagsToggle"),
+  showOracleToggle: document.getElementById("showOracleToggle"),
   searchFiltersBtn: document.getElementById("searchFiltersBtn"),
   resetFiltersBtn: document.getElementById("resetFiltersBtn"),
   cmcMin: document.getElementById("cmcMinFilter"),
@@ -139,8 +140,11 @@ function typePassesFilter(type){
 function setPassesFilter(card){
   const clauses = parseFilterClauses(el.set?.value);
   if(!clauses.length) return true;
-  const setCode = getCardSetCode(card);
-  return clauses.every(group => group.some(term => setCode.includes(term)));
+  // Build list of all set codes for this card (all_sets covers reprints; fall back to single set)
+  const allSets = Array.isArray(card.all_sets) && card.all_sets.length
+    ? card.all_sets.map(s => normalizeText(s))
+    : [getCardSetCode(card)];
+  return clauses.every(group => group.some(term => allSets.some(s => s.includes(term))));
 }
 
 function getVisibleTags(card){
@@ -365,6 +369,13 @@ function renderCards(cards){
     } else {
       tagsRow.style.display = "none";
     }
+    const oracleRow = node.querySelector(".oracle-row");
+    if(el.showOracleToggle?.checked && card.oracle_text){
+      oracleRow.textContent = card.oracle_text;
+      oracleRow.style.display = "";
+    } else {
+      oracleRow.style.display = "none";
+    }
     const colorPill = node.querySelector(".color-pill");
     colorPill.innerHTML = renderColorPips(card);
     node.querySelector(".commander-pill").innerHTML = renderColorIdentityPips(card);
@@ -528,6 +539,7 @@ function updateDeckThresholdLabel(){
 function ensureTopbarActionsLayout(){
   const imageLabel = el.imageToggle?.closest("label");
   const tagsLabel = el.showTagsToggle?.closest("label");
+  const oracleLabel = el.showOracleToggle?.closest("label");
   const searchActions = document.querySelector(".search-actions");
   if(!imageLabel || !tagsLabel || !searchActions) return;
   // Already inside topbar-actions — nothing to do
@@ -542,6 +554,7 @@ function ensureTopbarActionsLayout(){
   }
   wrapper.appendChild(imageLabel);
   wrapper.appendChild(tagsLabel);
+  if(oracleLabel) wrapper.appendChild(oracleLabel);
   wrapper.appendChild(searchActions);
 }
 
@@ -562,6 +575,7 @@ function resetSearchFilters(){
   if(el.sort) el.sort.value = "include_desc";
   if(el.imageToggle) el.imageToggle.checked = true;
   if(el.showTagsToggle) el.showTagsToggle.checked = false;
+  if(el.showOracleToggle) el.showOracleToggle.checked = false;
 
   for(const checkbox of document.querySelectorAll('input[name="exactColor"]')) checkbox.checked = false;
   for(const control of [el.commanderW, el.commanderU, el.commanderB, el.commanderR, el.commanderG, document.getElementById("commanderC")]){
@@ -644,6 +658,7 @@ if(el.resetFiltersBtn) el.resetFiltersBtn.addEventListener("click", resetSearchF
 // Toggles that only affect rendering — re-render immediately without re-filtering
 if(el.imageToggle) el.imageToggle.addEventListener("change", () => renderCards(currentFilteredSorted));
 if(el.showTagsToggle) el.showTagsToggle.addEventListener("change", () => renderCards(currentFilteredSorted));
+if(el.showOracleToggle) el.showOracleToggle.addEventListener("change", () => renderCards(currentFilteredSorted));
 
 el.deckThresholdMode.addEventListener("change", updateDeckThresholdLabel);
 updateDeckThresholdLabel();

@@ -1,0 +1,75 @@
+update_all_data.py - Command Line Options
+==========================================
+
+Usage:
+  python update_all_data.py [options]
+
+The script runs a 4-step pipeline:
+  [1/4] Fetch cards from Scryfall + EDHREC + Tagger  (cards.json)
+  [2/4] Rebuild the cards table in cards.db           (from cards.json)
+  [3/4] Update prices                                 (from Scryfall bulk data)
+  [4/4] Backfill any missing oracle_id values         (safety step)
+
+----------------------------------------
+OPTIONS
+----------------------------------------
+
+--skip-fetch
+    Skip step 1. Reuse the existing cards.json on disk instead of
+    fetching fresh data from Scryfall/EDHREC/Tagger.
+    Useful when you only want to rebuild the database from an
+    already-downloaded cards.json.
+
+--skip-tagger
+    During step 1, do not fetch card tags from Scryfall Tagger.
+    Tags already stored in the cache/database are preserved.
+    Speeds up the fetch significantly (Tagger is slow).
+
+--skip-edhrec
+    During step 1, do not look up inclusion % from EDHREC.
+    Inclusion values already stored in the cache/database are preserved.
+    Speeds up the fetch significantly.
+
+--skip-prices
+    Skip step 3. Keep the existing prices in the database unchanged.
+    Useful when you only want to update card data without making
+    price-related network requests.
+
+--refresh-bulk
+    Force a fresh download of Scryfall's bulk card data file,
+    ignoring any locally cached bulk file.
+    Without this flag the cached bulk file is reused if it exists.
+
+--pretty
+    Write cards.json with readable indentation (pretty-printed JSON)
+    instead of compact single-line JSON.
+    Useful for debugging cards.json manually.
+
+--max-cards <number>
+    Maximum number of cards to fetch from Scryfall.
+    Default: 200000
+    Useful for quick test runs, e.g. --max-cards 500
+
+--oracle-sleep <seconds>
+    Delay in seconds between fallback oracle ID lookup requests.
+    Default: 0.12
+    Increase if you are getting rate-limited during the oracle backfill step.
+
+----------------------------------------
+COMMON COMBINATIONS
+----------------------------------------
+
+Full refresh (everything):
+  python update_all_data.py --refresh-bulk
+
+Rebuild DB from existing cards.json, skip prices (fastest, no network):
+  python update_all_data.py --skip-fetch --skip-prices
+
+Rebuild DB and refresh prices, skip slow Tagger/EDHREC fetch:
+  python update_all_data.py --skip-fetch
+
+Fetch new cards but skip Tagger (faster fetch, tags preserved from cache):
+  python update_all_data.py --skip-tagger
+
+Quick test run with a small card set:
+  python update_all_data.py --skip-tagger --skip-edhrec --max-cards 500

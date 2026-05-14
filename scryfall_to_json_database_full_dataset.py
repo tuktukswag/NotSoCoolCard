@@ -474,6 +474,17 @@ def main():
     seen_oracle_ids = set()
     results = []
 
+    # Pre-pass: collect every set code each oracle_id has been printed in.
+    oracle_to_sets: dict[str, list[str]] = {}
+    for card in cards:
+        oracle_id = card.get("oracle_id")
+        set_code = card.get("set")
+        if oracle_id and set_code:
+            if oracle_id not in oracle_to_sets:
+                oracle_to_sets[oracle_id] = []
+            if set_code not in oracle_to_sets[oracle_id]:
+                oracle_to_sets[oracle_id].append(set_code)
+
     # Reuse any cached Tagger results by oracle ID across different printings.
     tagger_cache_by_oracle: dict[str, list] = {}
     for card in cards:
@@ -576,6 +587,7 @@ def main():
             "keywords": card.get("keywords", []),
             "games": card.get("games", []),
             "legalities": card.get("legalities", {}),
+            "all_sets": oracle_to_sets.get(oracle_id, [card.get("set")] if card.get("set") else []),
         })
 
         if idx % 250 == 0:

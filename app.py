@@ -82,6 +82,7 @@ def load_cards():
     back_mana_expr = '"back_mana_cost" AS back_mana_cost' if "back_mana_cost" in columns else "NULL AS back_mana_cost"
     set_expr = '"set" AS set_code' if "set" in columns else "NULL AS set_code"
     collector_expr = '"collector_number" AS collector_number' if "collector_number" in columns else "NULL AS collector_number"
+    all_sets_expr = '"all_sets" AS all_sets' if "all_sets" in columns else "'[]' AS all_sets"
 
     cursor.execute(
         f"""
@@ -102,7 +103,8 @@ def load_cards():
             {back_image_expr},
             {back_mana_expr},
             {set_expr},
-            {collector_expr}
+            {collector_expr},
+            {all_sets_expr}
         FROM cards
         """
     )
@@ -128,6 +130,7 @@ def load_cards():
             'back_mana_cost': row[14],
             'set': row[15],
             'collector_number': row[16],
+            'all_sets': parse_json_array(row[17]),
         }
         cards.append(card)
     return cards

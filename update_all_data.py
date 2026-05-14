@@ -100,7 +100,8 @@ def create_tables(conn: sqlite3.Connection) -> None:
             image_url TEXT,
             back_image_url TEXT,
             "set" TEXT,
-            collector_number TEXT
+            collector_number TEXT,
+            all_sets TEXT
         )
         """
     )
@@ -109,6 +110,8 @@ def create_tables(conn: sqlite3.Connection) -> None:
         cursor.execute('ALTER TABLE cards ADD COLUMN oracle_text TEXT')
     if "back_mana_cost" not in card_cols:
         cursor.execute('ALTER TABLE cards ADD COLUMN back_mana_cost TEXT')
+    if "all_sets" not in card_cols:
+        cursor.execute('ALTER TABLE cards ADD COLUMN all_sets TEXT')
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS prices (
@@ -132,6 +135,28 @@ def create_tables(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+
+def build_all_sets_from_bulk() -> dict[str, list[str]]:
+    """Read the Scryfall bulk cache and return a mapping of oracle_id -> [set_code, ...]."""
+    bulk_path = BASE_DIR / ".cache" / "scryfall_default_cards.json"
+    if not bulk_path.exists():
+        return {}
+    print("Building all_sets map from bulk cache...", flush=True)
+    with bulk_path.open("r", encoding="utf-8") as f:
+        bulk = json.load(f)
+    oracle_to_sets: dict[str, list[str]] = {}
+    for card in bulk:
+        oracle_id = card.get("oracle_id")
+        set_code = card.get("set")
+        if not oracle_id or not set_code:
+            continue
+        if oracle_id not in oracle_to_sets:
+            oracle_to_sets[oracle_id] = []
+        if set_code not in oracle_to_sets[oracle_id]:
+            oracle_to_sets[oracle_id].append(set_code)
+    print(f"  {len(oracle_to_sets)} oracle IDs with set lists", flush=True)
+    return oracle_to_sets
 
 
 def normalize_back_images(cards: list[dict]) -> int:
@@ -174,7 +199,21 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
     backfilled_back_images = normalize_back_images(cards)
     if backfilled_back_images:
         print(f"Back-image safety fill: {backfilled_back_images} cards")
-    if removed_stickers or removed_meld or backfilled_back_images:
+
+    # Populate all_sets from bulk cache (covers cards.json built before this field existed)
+    all_sets_map = build_all_sets_from_bulk()
+    if all_sets_map:
+        filled = 0
+        for card in cards:
+            if not card.get("all_sets"):
+                oracle_id = card.get("oracle_id")
+                if oracle_id and oracle_id in all_sets_map:
+                    card["all_sets"] = all_sets_map[oracle_id]
+                    filled += 1
+        if filled:
+            print(f"all_sets backfilled from bulk cache: {filled} cards")
+
+    if removed_stickers or removed_meld or backfilled_back_images or (all_sets_map and filled):
         # Keep cards.json consistent with what is inserted into SQLite.
         payload["cards"] = cards
         with cards_json_path.open("w", encoding="utf-8") as f:
@@ -185,20 +224,19 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
     cursor = conn.cursor()
 
     preserve_by_oracle: dict[str, tuple[float | None, list]] = {}
-    if skip_tagger or skip_edhrec:
-        try:
-            cursor.execute("SELECT oracle_id, include_pct, tags FROM cards WHERE oracle_id IS NOT NULL AND oracle_id != ''")
-            for oracle_id, include_pct, tags_json in cursor.fetchall():
-                tags = []
-                if tags_json:
-                    try:
-                        parsed = json.loads(tags_json)
-                        tags = parsed if isinstance(parsed, list) else []
-                    except Exception:
-                        tags = []
-                preserve_by_oracle[str(oracle_id)] = (include_pct, tags)
-        except Exception:
-            preserve_by_oracle = {}
+    try:
+        cursor.execute("SELECT oracle_id, include_pct, tags FROM cards WHERE oracle_id IS NOT NULL AND oracle_id != ''")
+        for oracle_id, include_pct, tags_json in cursor.fetchall():
+            tags = []
+            if tags_json:
+                try:
+                    parsed = json.loads(tags_json)
+                    tags = parsed if isinstance(parsed, list) else []
+                except Exception:
+                    tags = []
+            preserve_by_oracle[str(oracle_id)] = (include_pct, tags)
+    except Exception:
+        preserve_by_oracle = {}
 
     if preserve_by_oracle:
         for card in cards:
@@ -209,9 +247,11 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
             if not previous:
                 continue
             old_include, old_tags = previous
-            if skip_edhrec and card.get("include_pct") is None and old_include is not None:
+            # Always restore include_pct from DB if cards.json has null
+            if card.get("include_pct") is None and old_include is not None:
                 card["include_pct"] = old_include
-            if skip_tagger and not card.get("tags") and old_tags:
+            # Always restore tags from DB if cards.json has none
+            if not card.get("tags") and old_tags:
                 card["tags"] = old_tags
 
     cursor.execute("DELETE FROM cards")
@@ -236,6 +276,7 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
                 card.get("back_image_url"),
                 card.get("set"),
                 card.get("collector_number"),
+                json.dumps(card.get("all_sets", [])),
             )
         )
 
@@ -244,9 +285,9 @@ def rebuild_cards_table(cards_json_path: Path, db_path: Path, skip_tagger: bool 
         INSERT INTO cards (
             oracle_id, name, card_type, oracle_text, mana_cost, back_mana_cost, cmc, color,
             color_identity, include_pct, tags, keywords, image_url,
-            back_image_url, "set", collector_number
+            back_image_url, "set", collector_number, all_sets
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -461,6 +502,7 @@ def main() -> None:
     parser.add_argument("--skip-fetch", action="store_true", help="Skip cards.json fetch and reuse existing cards.json")
     parser.add_argument("--skip-tagger", action="store_true", help="Skip tagger tags during card fetch")
     parser.add_argument("--skip-edhrec", action="store_true", help="Skip EDHREC inclusion lookup during card fetch")
+    parser.add_argument("--skip-prices", action="store_true", help="Skip price update and keep existing prices")
     parser.add_argument("--pretty", action="store_true", help="Write pretty cards.json during card fetch")
     parser.add_argument("--max-cards", type=int, default=DEFAULT_MAX_CARDS, help=f"Max cards to fetch from Scryfall (default: {DEFAULT_MAX_CARDS})")
     parser.add_argument("--refresh-bulk", action="store_true", help="Force a fresh Scryfall bulk download before using cached bulk data")
@@ -476,16 +518,21 @@ def main() -> None:
 
     card_rows = rebuild_cards_table(CARDS_JSON, DB_FILE, skip_tagger=args.skip_tagger, skip_edhrec=args.skip_edhrec)
     backfilled = ensure_oracle_ids(DB_FILE, CARDS_JSON, args.oracle_sleep)
-    try:
-        total_oracle, updated, skipped = rebuild_prices(DB_FILE, refresh_bulk=args.refresh_bulk)
-    except RuntimeError as exc:
-        raise SystemExit(str(exc)) from exc
+    if not args.skip_prices:
+        try:
+            total_oracle, updated, skipped = rebuild_prices(DB_FILE, refresh_bulk=args.refresh_bulk)
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
+    else:
+        print("[3/4] Skipped price update (--skip-prices)")
+        total_oracle = updated = skipped = 0
 
     elapsed = time.time() - started
     print("\nRefresh complete")
     print(f"cards rows: {card_rows}")
     print(f"oracle backfilled: {backfilled}")
-    print(f"price targets: {total_oracle}, updated: {updated}, skipped: {skipped}")
+    if not args.skip_prices:
+        print(f"price targets: {total_oracle}, updated: {updated}, skipped: {skipped}")
     print(f"elapsed: {elapsed/60:.1f} min")
 
 
