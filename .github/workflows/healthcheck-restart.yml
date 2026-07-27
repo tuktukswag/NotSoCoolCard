@@ -14,6 +14,7 @@ jobs:
       APP_SERVICE: notsocoolcard
       WEB_SERVICE: nginx
       TUNNEL_SERVICE: cloudflared
+      MONITOR_SERVICE: coolcard-monitor
     steps:
       - name: Check website health
         id: health
@@ -162,3 +163,32 @@ jobs:
           echo "Hint: compare local checks in SSH logs (127.0.0.1:5000 and 127.0.0.1) vs public SITE_URL."
           echo "If local checks are healthy but public is not, likely DNS/proxy/tunnel issue."
           exit 1
+
+      - name: Check and restart monitor service
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_PORT }}
+          script: |
+            set +e
+            SUDO="sudo -n"
+            MONITOR="${{ env.MONITOR_SERVICE }}"
+            STATUS=$($SUDO systemctl is-active "$MONITOR" 2>/dev/null)
+            echo "Monitor service '$MONITOR' status: $STATUS"
+            if [ "$STATUS" != "active" ]; then
+              echo "Monitor not active — restarting..."
+              if $SUDO /usr/bin/systemctl restart "$MONITOR" 2>/dev/null; then
+                echo "Restarted OK"
+              elif $SUDO /bin/systemctl restart "$MONITOR" 2>/dev/null; then
+                echo "Restarted OK"
+              else
+                echo "Restart failed — check that passwordless sudo covers systemctl restart $MONITOR"
+              fi
+              sleep 3
+              NEW_STATUS=$($SUDO systemctl is-active "$MONITOR" 2>/dev/null)
+              echo "Monitor status after restart: $NEW_STATUS"
+            else
+              echo "Monitor is active — OK"
+            fi
