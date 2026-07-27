@@ -10,7 +10,9 @@ SERVICE_NAME="coolcard-monitor"
 CURRENT_USER="$(whoami)"
 
 echo "=== [1/4] Installing Python dependencies ==="
-pip3 install -r "$SCRIPT_DIR/requirements.txt"
+python3 -m venv "$SCRIPT_DIR/venv"
+"$SCRIPT_DIR/venv/bin/pip" install --upgrade pip -q
+"$SCRIPT_DIR/venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
 
 echo ""
 echo "=== [2/4] Checking .env file ==="
