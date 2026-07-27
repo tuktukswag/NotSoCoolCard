@@ -4,6 +4,7 @@ import time
 import logging
 import re
 import requests
+import cloudscraper
 from pathlib import Path
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -41,6 +42,9 @@ HEADERS = {
 
 # Minimum products expected per page — if we get fewer, assume parse failure
 MIN_PRODUCTS_EXPECTED = 5
+
+# Cloudscraper session for Cloudflare-protected sites (magicspoiler.com)
+_spoiler_scraper = cloudscraper.create_scraper()
 
 SPOILER_BASE = "https://www.magicspoiler.com"
 SPOILER_STATE_FILE = BASE_DIR / "seen_spoilers.json"
@@ -146,9 +150,9 @@ def _set_name_from_slug(slug: str) -> str:
 def fetch_spoilers(set_url: str) -> list[dict] | None:
     """Fetch a spoiler set page and return list of card dicts, or None on error."""
     try:
-        resp = requests.get(set_url, headers=HEADERS, timeout=20)
+        resp = _spoiler_scraper.get(set_url, timeout=30)
         resp.raise_for_status()
-    except requests.RequestException as exc:
+    except Exception as exc:
         log.error("Failed to fetch spoiler page %s: %s", set_url, exc)
         return None
 
