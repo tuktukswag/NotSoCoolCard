@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import re
+from urllib.parse import urljoin
 import requests
 import cloudscraper
 from pathlib import Path
@@ -56,6 +57,13 @@ SPOILER_URLS = [
     "https://www.magicspoiler.com/mtg-set/kamigawa-titanbreach/",
     "https://www.magicspoiler.com/mtg-set/zhalfir/",
 ]
+
+EXTRA_PRODUCT_URLS = [
+    "https://mysteryshack.se/products/magic-the-gathering",
+    "https://manatorsk.com/collections/mtg-booster-box",
+    "https://www.alaragames.se/collections/display?sort_by=created-descending",
+]
+EXTRA_PRODUCT_STATE_FILE = BASE_DIR / "seen_external_products.json"
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +144,103 @@ def save_state(slugs: set[str]) -> None:
         json.dump(sorted(slugs), fh, ensure_ascii=False, indent=2)
 
 
+def load_external_product_state() -> dict[str, list[str]]:
+    if EXTRA_PRODUCT_STATE_FILE.exists():
+        with open(EXTRA_PRODUCT_STATE_FILE, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    return {}
+
+
+def save_external_product_state(state: dict[str, list[str]]) -> None:
+    with open(EXTRA_PRODUCT_STATE_FILE, "w", encoding="utf-8") as fh:
+        json.dump({k: sorted(v) for k, v in state.items()}, fh, ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Additional retailer scraping
+# ---------------------------------------------------------------------------
+def fetch_extra_products(page_url: str) -> list[dict] | None:
+    try:
+        resp = requests.get(page_url, headers=HEADERS, timeout=20)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        log.error("Failed to fetch product page %s: %s", page_url, exc)
+        return None
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    products: dict[str, dict] = {}
+
+    for a_tag in soup.find_all("a", href=True):
+        href = a_tag["href"].strip()
+        if not href or href.startswith("#"):
+            continue
+        if "javascript:" in href.lower() or href.startswith("mailto:"):
+            continue
+        if "/products/" not in href and "/product/" not in href:
+            continue
+        if "/wishlist" in href or "/cart" in href or "/checkout" in href:
+            continue
+
+        full_url = urljoin(page_url, href)
+        text = a_tag.get_text(" ", strip=True)
+        text = re.sub(r"(?i)\s*(wishlist|add to cart|view product|read more).*", "", text).strip()
+        if not text:
+            continue
+
+        # Keep the product title clean enough but avoid too much churn from stock text
+        text = re.sub(r"\s+", " ", text)
+        if text.lower().endswith("sold out"):
+            text = text.rsplit("sold out", 1)[0].strip()
+
+        name = text[:140] if len(text) > 140 else text
+        if not name:
+            continue
+
+        price_match = re.search(r"(\d[\d\s\.,]*\d)\s*(kr|kronor|sek)", text, re.IGNORECASE)
+        price = price_match.group(0).strip() if price_match else ""
+
+        products[full_url] = {"name": name, "url": full_url, "price": price}
+
+    return list(products.values())
+
+
+def check_extra_product_pages() -> None:
+    state = load_external_product_state()
+    changed = False
+
+    for page_url in EXTRA_PRODUCT_URLS:
+        source_name = page_url.split("//")[-1].split("/")[0]
+        products = fetch_extra_products(page_url)
+        if products is None:
+            log.warning("Skipping extra product page %s — fetch failed", page_url)
+            continue
+
+        current_urls = {p["url"] for p in products}
+        known_urls = set(state.get(page_url, []))
+
+        if page_url not in state:
+            state[page_url] = sorted(current_urls)
+            changed = True
+            log.info("First run for %s: %d products baselined.", source_name, len(current_urls))
+            continue
+
+        new_urls = current_urls - known_urls
+        if new_urls:
+            product_map = {p["url"]: p for p in products}
+            for product_url in new_urls:
+                product = product_map[product_url]
+                log.info("New extra product detected at %s: %s", source_name, product["name"])
+                if WEBHOOK_URL:
+                    post_discord_product(product, source_name, page_url)
+            state[page_url] = sorted(known_urls | new_urls)
+            changed = True
+        else:
+            log.info("No new product additions on %s (%d items).", source_name, len(current_urls))
+
+    if changed:
+        save_external_product_state(state)
+
+
 # ---------------------------------------------------------------------------
 # Spoiler scraping
 # ---------------------------------------------------------------------------
@@ -200,6 +305,56 @@ def save_spoiler_state(state: dict[str, list[str]]) -> None:
         )
 
 
+def extract_image_url_from_html(html: str) -> str | None:
+    """Best-effort extraction of the image URL for a spoiler page."""
+    soup = BeautifulSoup(html, "html.parser")
+
+    for selector in (
+        "meta[property='og:image']",
+        "meta[property='og:image:url']",
+        "meta[name='twitter:image']",
+        "meta[name='twitter:image:src']",
+        "meta[property='twitter:image']",
+        "meta[itemprop='image']",
+    ):
+        tag = soup.select_one(selector)
+        if tag is None:
+            continue
+        candidate = tag.get("content") or tag.get("src") or tag.get("data-src")
+        if candidate and candidate.strip():
+            return candidate.strip()
+
+    for img in soup.find_all("img"):
+        for attr in ("src", "data-src", "data-lazy-src", "data-original", "srcset"):
+            candidate = img.get(attr)
+            if not candidate or not candidate.strip():
+                continue
+            candidate = candidate.strip()
+            if candidate.startswith("data:"):
+                continue
+            if "," in candidate and candidate.split(",")[0].startswith(("http", "//", "/")):
+                candidate = candidate.split(",")[0].strip()
+            if candidate.startswith(("http", "//", "/")):
+                return candidate
+
+    return None
+
+
+def fetch_card_image_url(card_url: str) -> str | None:
+    """Fetch a spoiler card page and return the first usable card image URL."""
+    try:
+        resp = _spoiler_scraper.get(card_url, timeout=30, headers=HEADERS)
+        resp.raise_for_status()
+    except Exception as exc:
+        log.warning("Failed to fetch spoiler card page %s: %s", card_url, exc)
+        return None
+
+    image_url = extract_image_url_from_html(resp.text)
+    if not image_url:
+        return None
+    return urljoin(card_url, image_url)
+
+
 def check_spoilers() -> None:
     state = load_spoiler_state()
     changed = False
@@ -231,9 +386,11 @@ def check_spoilers() -> None:
             slug_map = {c["slug"]: c for c in cards}
             for slug in new_slugs:
                 card = slug_map[slug]
+                image_url = fetch_card_image_url(card["url"])
+                card["image_url"] = image_url
                 log.info("New spoiler: %s — %s", set_name, card["name"])
                 if WEBHOOK_URL:
-                    post_discord_spoiler(card, set_name, set_url)
+                    post_discord_spoiler(card, set_name, set_url, image_url)
                 else:
                     log.warning("DISCORD_WEBHOOK_URL not set — skipping spoiler notification")
             state[set_slug] = sorted(known_slugs | new_slugs)
@@ -264,7 +421,9 @@ def post_discord_startup() -> None:
         log.error("Failed to send startup notification: %s", exc)
 
 
-def post_discord_spoiler(card: dict, set_name: str, set_url: str) -> None:
+def post_discord_spoiler(
+    card: dict, set_name: str, set_url: str, image_url: str | None = None
+) -> None:
     mention = f"<@{USER_ID}>" if USER_ID else ""
     lines = [
         f"🃏 **New card spoiled for {set_name}!**",
@@ -274,7 +433,20 @@ def post_discord_spoiler(card: dict, set_name: str, set_url: str) -> None:
     ]
     if mention:
         lines.append(mention)
+
+    image_url = image_url or card.get("image_url")
     payload = {"content": "\n".join(lines)}
+    if image_url:
+        payload["embeds"] = [
+            {
+                "title": card["name"],
+                "url": card["url"],
+                "description": f"New card spoiled for {set_name}",
+                "color": 0x5865F2,
+                "image": {"url": image_url},
+            }
+        ]
+
     try:
         resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
@@ -302,6 +474,27 @@ def post_discord(product: dict) -> None:
         log.info("Discord notification sent for: %s", product["name"])
     except requests.RequestException as exc:
         log.error("Failed to post Discord message: %s", exc)
+
+
+def post_discord_product(product: dict, source_name: str, page_url: str) -> None:
+    mention = f"<@{USER_ID}>" if USER_ID else ""
+    price_part = f" — **{product['price']}**" if product["price"] else ""
+    lines = [
+        f"🆕 **New product on {source_name}!**",
+        f"**{product['name']}**{price_part}",
+        f"🔗 {product['url']}",
+        f"🌐 {page_url}",
+    ]
+    if mention:
+        lines.append(mention)
+
+    payload = {"content": "\n".join(lines)}
+    try:
+        resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+        resp.raise_for_status()
+        log.info("Discord extra-product notification sent for: %s", product["name"])
+    except requests.RequestException as exc:
+        log.error("Failed to post extra-product Discord message: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +539,7 @@ def check_once() -> None:
     else:
         log.info("No new products (%d total on page).", len(current_slugs))
 
+    check_extra_product_pages()
     check_spoilers()
 
 
