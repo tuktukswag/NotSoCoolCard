@@ -21,7 +21,10 @@ CHECK_INTERVAL = 300  # seconds (5 minutes)
 
 load_dotenv(BASE_DIR / ".env")
 
-WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+LEGACY_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+PRODUCT_WEBHOOK_URL = os.environ.get("DISCORD_PRODUCT_WEBHOOK_URL", "") or LEGACY_WEBHOOK_URL
+SPOILER_WEBHOOK_URL = os.environ.get("DISCORD_SPOILER_WEBHOOK_URL", "") or LEGACY_WEBHOOK_URL
+WEBHOOK_URL = PRODUCT_WEBHOOK_URL  # backward-compatible alias for older config
 USER_ID = os.environ.get("DISCORD_USER_ID", "")
 
 logging.basicConfig(
@@ -56,12 +59,23 @@ SPOILER_URLS = [
     "https://www.magicspoiler.com/mtg-set/nauctis-the-sunken-realm/",
     "https://www.magicspoiler.com/mtg-set/kamigawa-titanbreach/",
     "https://www.magicspoiler.com/mtg-set/zhalfir/",
+    "https://www.magicspoiler.com/mtg-set/marvel-darkhold-destiny/",
 ]
 
 EXTRA_PRODUCT_URLS = [
     "https://mysteryshack.se/products/magic-the-gathering",
     "https://manatorsk.com/collections/mtg-booster-box",
     "https://www.alaragames.se/collections/display?sort_by=created-descending",
+    "https://zulusgames.com/collections/one-piece-tcg/in-stock?sort_by=created-descending",
+    "https://www.coolcard.se/en/category/pokmon-2?sortBy=idDesc&page=1",
+    "https://www.coolcard.se/en/category/one-piece-card-game-2",
+    "https://mysteryshack.se/products/pokemon",
+    "https://mysteryshack.se/products/one-piece",
+    "https://mysteryshack.eu/one-piece",
+    "https://manatorsk.com/collections/one-piece-tcg",
+    "https://speltrollet.se/collections/pokemon?sort_by=created-descending&grid=default",
+    "https://speltrollet.se/collections/magic-the-gathering?sort_by=created-descending&grid=default",
+    "https://speltrollet.se/collections/one-piece?sort_by=created-descending&grid=default",
 ]
 EXTRA_PRODUCT_STATE_FILE = BASE_DIR / "seen_external_products.json"
 
@@ -230,7 +244,7 @@ def check_extra_product_pages() -> None:
             for product_url in new_urls:
                 product = product_map[product_url]
                 log.info("New extra product detected at %s: %s", source_name, product["name"])
-                if WEBHOOK_URL:
+                if PRODUCT_WEBHOOK_URL:
                     post_discord_product(product, source_name, page_url)
             state[page_url] = sorted(known_urls | new_urls)
             changed = True
@@ -389,10 +403,10 @@ def check_spoilers() -> None:
                 image_url = fetch_card_image_url(card["url"])
                 card["image_url"] = image_url
                 log.info("New spoiler: %s — %s", set_name, card["name"])
-                if WEBHOOK_URL:
+                if SPOILER_WEBHOOK_URL:
                     post_discord_spoiler(card, set_name, set_url, image_url)
                 else:
-                    log.warning("DISCORD_WEBHOOK_URL not set — skipping spoiler notification")
+                    log.warning("DISCORD_SPOILER_WEBHOOK_URL not set — skipping spoiler notification")
             state[set_slug] = sorted(known_slugs | new_slugs)
             changed = True
         else:
@@ -408,13 +422,13 @@ def check_spoilers() -> None:
 # Discord notification
 # ---------------------------------------------------------------------------
 def post_discord_startup() -> None:
-    mention = f"<@{USER_ID}>" if USER_ID else ""
+    mention = "@everyone"
     lines = ["✅ **Coolcard monitor is online!**"]
-    if mention:
-        lines.append(mention)
+    lines.append(mention)
     payload = {"content": "\n".join(lines)}
+    startup_webhook = PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL
     try:
-        resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(startup_webhook, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Startup notification sent to Discord")
     except requests.RequestException as exc:
@@ -424,15 +438,14 @@ def post_discord_startup() -> None:
 def post_discord_spoiler(
     card: dict, set_name: str, set_url: str, image_url: str | None = None
 ) -> None:
-    mention = f"<@{USER_ID}>" if USER_ID else ""
+    mention = "@everyone"
     lines = [
         f"🃏 **New card spoiled for {set_name}!**",
         f"**{card['name']}**",
         f"🔗 {card['url']}",
         f"🌐 {set_url}",
     ]
-    if mention:
-        lines.append(mention)
+    lines.append(mention)
 
     image_url = image_url or card.get("image_url")
     payload = {"content": "\n".join(lines)}
@@ -448,7 +461,7 @@ def post_discord_spoiler(
         ]
 
     try:
-        resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Spoiler notification sent: %s — %s", set_name, card["name"])
     except requests.RequestException as exc:
@@ -456,7 +469,7 @@ def post_discord_spoiler(
 
 
 def post_discord(product: dict) -> None:
-    mention = f"<@{USER_ID}>" if USER_ID else ""
+    mention = "@everyone"
     price_part = f" — **{product['price']}**" if product["price"] else ""
     lines = [
         "🆕 **New product on Coolcard!**",
@@ -464,12 +477,11 @@ def post_discord(product: dict) -> None:
         f"🔗 {product['url']}",
         f"🌐 {CATEGORY_URL}",
     ]
-    if mention:
-        lines.append(mention)
+    lines.append(mention)
 
     payload = {"content": "\n".join(lines)}
     try:
-        resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(PRODUCT_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Discord notification sent for: %s", product["name"])
     except requests.RequestException as exc:
@@ -477,7 +489,7 @@ def post_discord(product: dict) -> None:
 
 
 def post_discord_product(product: dict, source_name: str, page_url: str) -> None:
-    mention = f"<@{USER_ID}>" if USER_ID else ""
+    mention = "@everyone"
     price_part = f" — **{product['price']}**" if product["price"] else ""
     lines = [
         f"🆕 **New product on {source_name}!**",
@@ -485,12 +497,11 @@ def post_discord_product(product: dict, source_name: str, page_url: str) -> None
         f"🔗 {product['url']}",
         f"🌐 {page_url}",
     ]
-    if mention:
-        lines.append(mention)
+    lines.append(mention)
 
     payload = {"content": "\n".join(lines)}
     try:
-        resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(PRODUCT_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Discord extra-product notification sent for: %s", product["name"])
     except requests.RequestException as exc:
@@ -531,10 +542,10 @@ def check_once() -> None:
         for slug in new_slugs:
             product = slug_map[slug]
             log.info("New product detected: %s (%s)", product["name"], product["price"])
-            if WEBHOOK_URL:
+            if PRODUCT_WEBHOOK_URL:
                 post_discord(product)
             else:
-                log.warning("DISCORD_WEBHOOK_URL not set — skipping notification")
+                log.warning("DISCORD_PRODUCT_WEBHOOK_URL not set — skipping notification")
         save_state(known_slugs | new_slugs)
     else:
         log.info("No new products (%d total on page).", len(current_slugs))
@@ -547,15 +558,15 @@ def check_once() -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
-    if not WEBHOOK_URL:
-        log.warning("DISCORD_WEBHOOK_URL is not set — all notifications will be skipped")
+    if not PRODUCT_WEBHOOK_URL and not SPOILER_WEBHOOK_URL and not LEGACY_WEBHOOK_URL:
+        log.warning("No Discord webhook is configured — all notifications will be skipped")
     log.info(
         "Coolcard monitor started. Interval: %ds. Watching: %s",
         CHECK_INTERVAL,
         CATEGORY_URL,
     )
 
-    if WEBHOOK_URL:
+    if PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL:
         post_discord_startup()
 
     while True:
