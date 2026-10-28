@@ -433,12 +433,44 @@ def post_discord_startup() -> None:
             "DISCORD_SPOILER_WEBHOOK_URL"
         )
         return
-    try:
-        resp = requests.post(startup_webhook, json=payload, timeout=10)
-        resp.raise_for_status()
-        log.info("Startup notification sent to Discord")
-    except requests.RequestException as exc:
-        log.error("Failed to send startup notification: %s", exc)
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.post(startup_webhook, json=payload, timeout=10)
+
+            # Discord may rate-limit webhook bursts right after restarts.
+            if resp.status_code == 429:
+                retry_after = 2.0
+                try:
+                    body = resp.json()
+                    retry_after = float(body.get("retry_after", retry_after))
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    pass
+
+                if attempt < max_attempts:
+                    log.warning(
+                        "Startup notification rate-limited (attempt %d/%d), retrying in %.2fs",
+                        attempt,
+                        max_attempts,
+                        retry_after,
+                    )
+                    time.sleep(max(0.5, retry_after))
+                    continue
+
+            resp.raise_for_status()
+            log.info("Startup notification sent to Discord")
+            return
+        except requests.RequestException as exc:
+            if attempt < max_attempts:
+                log.warning(
+                    "Startup notification failed (attempt %d/%d): %s. Retrying...",
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                time.sleep(2)
+                continue
+            log.error("Failed to send startup notification: %s", exc)
 
 
 def post_discord_spoiler(
