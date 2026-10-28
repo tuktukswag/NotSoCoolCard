@@ -22,9 +22,8 @@ CHECK_INTERVAL = 300  # seconds (5 minutes)
 load_dotenv(BASE_DIR / ".env")
 
 LEGACY_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-PRODUCT_WEBHOOK_URL = os.environ.get("DISCORD_PRODUCT_WEBHOOK_URL", "") or LEGACY_WEBHOOK_URL
-SPOILER_WEBHOOK_URL = os.environ.get("DISCORD_SPOILER_WEBHOOK_URL", "") or LEGACY_WEBHOOK_URL
-WEBHOOK_URL = PRODUCT_WEBHOOK_URL  # backward-compatible alias for older config
+PRODUCT_WEBHOOK_URL = os.environ.get("DISCORD_PRODUCT_WEBHOOK_URL", "")
+SPOILER_WEBHOOK_URL = os.environ.get("DISCORD_SPOILER_WEBHOOK_URL", "")
 USER_ID = os.environ.get("DISCORD_USER_ID", "")
 
 logging.basicConfig(
@@ -422,11 +421,18 @@ def check_spoilers() -> None:
 # Discord notification
 # ---------------------------------------------------------------------------
 def post_discord_startup() -> None:
-    mention = "@everyone"
+    mention = f"<@{USER_ID}>" if USER_ID else ""
     lines = ["✅ **Coolcard monitor is online!**"]
-    lines.append(mention)
+    if mention:
+        lines.append(mention)
     payload = {"content": "\n".join(lines)}
-    startup_webhook = PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL
+    startup_webhook = PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL
+    if not startup_webhook:
+        log.warning(
+            "Startup message skipped: set DISCORD_PRODUCT_WEBHOOK_URL or "
+            "DISCORD_SPOILER_WEBHOOK_URL"
+        )
+        return
     try:
         resp = requests.post(startup_webhook, json=payload, timeout=10)
         resp.raise_for_status()
@@ -461,7 +467,7 @@ def post_discord_spoiler(
         ]
 
     try:
-        resp = requests.post(SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(SPOILER_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Spoiler notification sent: %s — %s", set_name, card["name"])
     except requests.RequestException as exc:
@@ -481,7 +487,7 @@ def post_discord(product: dict) -> None:
 
     payload = {"content": "\n".join(lines)}
     try:
-        resp = requests.post(PRODUCT_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(PRODUCT_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Discord notification sent for: %s", product["name"])
     except requests.RequestException as exc:
@@ -501,7 +507,7 @@ def post_discord_product(product: dict, source_name: str, page_url: str) -> None
 
     payload = {"content": "\n".join(lines)}
     try:
-        resp = requests.post(PRODUCT_WEBHOOK_URL or LEGACY_WEBHOOK_URL, json=payload, timeout=10)
+        resp = requests.post(PRODUCT_WEBHOOK_URL, json=payload, timeout=10)
         resp.raise_for_status()
         log.info("Discord extra-product notification sent for: %s", product["name"])
     except requests.RequestException as exc:
@@ -558,15 +564,23 @@ def check_once() -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> None:
-    if not PRODUCT_WEBHOOK_URL and not SPOILER_WEBHOOK_URL and not LEGACY_WEBHOOK_URL:
-        log.warning("No Discord webhook is configured — all notifications will be skipped")
+    if LEGACY_WEBHOOK_URL and (PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL):
+        log.warning(
+            "DISCORD_WEBHOOK_URL is ignored when split webhooks are set. "
+            "Using DISCORD_PRODUCT_WEBHOOK_URL and DISCORD_SPOILER_WEBHOOK_URL."
+        )
+    if not PRODUCT_WEBHOOK_URL and not SPOILER_WEBHOOK_URL:
+        log.warning(
+            "No split Discord webhook is configured — set DISCORD_PRODUCT_WEBHOOK_URL "
+            "and/or DISCORD_SPOILER_WEBHOOK_URL"
+        )
     log.info(
         "Coolcard monitor started. Interval: %ds. Watching: %s",
         CHECK_INTERVAL,
         CATEGORY_URL,
     )
 
-    if PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL or LEGACY_WEBHOOK_URL:
+    if PRODUCT_WEBHOOK_URL or SPOILER_WEBHOOK_URL:
         post_discord_startup()
 
     while True:
